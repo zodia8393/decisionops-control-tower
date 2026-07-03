@@ -1,0 +1,74 @@
+{
+  "captured_at_utc": "2026-07-03T05:23:32+00:00",
+  "base_url": "http://127.0.0.1:8093",
+  "health": {
+    "status": "ok",
+    "demo_mode_ready": true,
+    "public_deploy_decision": "NO_GO",
+    "impact_card_rows": 12,
+    "queue": {
+      "total": 42,
+      "by_state": {
+        "needs_more_evidence": 1,
+        "pending_reviewer": 41
+      }
+    },
+    "auth_required": false
+  },
+  "captures": [
+    {
+      "name": "dashboard_overview",
+      "path": "docs/assets/demo/dashboard_overview.png",
+      "url": "http://127.0.0.1:8093/dashboard",
+      "selector": null,
+      "full_page": false,
+      "size_bytes": 356262
+    },
+    {
+      "name": "dashboard_full_page",
+      "path": "docs/assets/demo/dashboard_full_page.png",
+      "url": "http://127.0.0.1:8093/dashboard",
+      "selector": null,
+      "full_page": true,
+      "size_bytes": 2044773
+    },
+    {
+      "name": "impact_map_section",
+      "path": "docs/assets/demo/impact_map_section.png",
+      "url": "http://127.0.0.1:8093/dashboard#impact-map",
+      "selector": "#impact-map",
+      "size_bytes": 523918
+    },
+    {
+      "name": "impact_map",
+      "path": "docs/assets/demo/impact_map.png",
+      "url": "http://127.0.0.1:8093/dashboard#impact-map",
+      "selector": "#impact-map",
+      "full_page": false,
+      "size_bytes": 548870
+    },
+    {
+      "name": "reviewer_queue_section",
+      "path": "docs/assets/demo/reviewer_queue_section.png",
+      "url": "http://127.0.0.1:8093/dashboard#reviewer-queue",
+      "selector": "#reviewer-queue",
+      "size_bytes": 987667
+    },
+    {
+      "name": "reviewer_queue",
+      "path": "docs/assets/demo/reviewer_queue.png",
+      "url": "http://127.0.0.1:8093/dashboard#reviewer-queue",
+      "selector": "#reviewer-queue",
+      "full_page": false,
+      "size_bytes": 178084
+    },
+    {
+      "name": "openapi_docs",
+      "path": "docs/assets/demo/openapi_docs.png",
+      "url": "http://127.0.0.1:8093/docs",
+      "selector": null,
+      "full_page": false,
+      "size_bytes": 93693
+    }
+  ]
+}

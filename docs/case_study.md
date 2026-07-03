@@ -37,6 +37,8 @@
 | Approval API | reviewer/admin token 기반 approve/reject/needs_more_evidence | 안전한 write boundary |
 | Deployment readiness | local/container/hosted/public `GO`/`NO_GO` 분리 | 배포 판단과 책임 경계 |
 
+시연용 캡처와 3분 설명 흐름은 [demo_package.md](demo_package.md)에 정리했다.
+
 ## 현재 검증 결과
 
 | 항목 | 상태 |
@@ -68,5 +70,5 @@
 |---|---|
 | Private demo hardening | `CONTROL_TOWER_ROLE_TOKENS` 설정 후 `scripts/verify_private_demo.py` 통과 |
 | Seoul validation ready | 최소 snapshot 기준 충족 후 validation summary `READY` |
-| Portfolio package | README, case study, DFD, runbook, screenshots가 한 흐름으로 연결 |
+| Portfolio package | README, case study, demo package, DFD, runbook, screenshots가 한 흐름으로 연결 |
 | Public claim update | Seoul validation `READY` 후 verified improvement와 한계 갱신 |

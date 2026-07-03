@@ -72,6 +72,12 @@ PYTHONPATH=src python3 scripts/verify_dashboard_ui.py
 PYTHONPATH=src python3 scripts/smoke_api.py --auth-smoke
 ```
 
+포트폴리오 캡처 생성:
+
+```bash
+python3 scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
+```
+
 `CONTROL_TOWER_ROLE_TOKENS` 설정 후 private demo 인증 smoke:
 
 ```bash
@@ -103,6 +109,7 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 - `scripts/smoke_api.py --auth-smoke`가 인증 없는 write 요청을 401로 막고, reviewer token이 인증 경계를 통과하는지 확인합니다.
 - `scripts/verify_private_demo.py`가 실제 role-token 설정에서 viewer write 차단, reviewer/admin write 인증, credential 비출력을 확인합니다.
 - `scripts/verify_dashboard_ui.py`가 한국어 UI, primary CTA, 지도 iframe/SVG fallback, 좌표 상태, 판단 근거 drawer, 내부 ID 숨김을 확인합니다.
+- `scripts/capture_demo_screenshots.py`가 dashboard, 지도, review queue, OpenAPI 캡처와 manifest를 생성합니다.
 - `/api/ops-metrics`가 artifact freshness, queue, auth 상태를 반환합니다.
 - `scripts/write_monitoring_snapshot.py`가 latest snapshot과 history JSONL을 생성합니다.
 - `scripts/write_deployment_readiness.py`가 local/container/hosted/public deploy decision을 JSON/Markdown으로 생성합니다.

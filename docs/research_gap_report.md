@@ -15,4 +15,4 @@
 | privacy publication gate | pass | raw 내부 data/token/write action 미포함 | release artifact scan 유지 |
 | CI/tests/smoke | pass | `scripts/run_all.sh`와 pytest 통과 | CI 실행 유지 |
 | GitHub/deploy/runbook | pass | Dockerfile, compose, `.env.example`, server script, OpenAPI/ops smoke, private demo auth verifier, deployment readiness gate, docker smoke, compose smoke 존재; public deploy는 upstream readiness 때문에 `NO_GO` | hosted demo 배포 여부 결정 |
-| Portfolio case study | pass | `docs/case_study.md`가 문제, 데이터, 제품 surface, 검증, 의사결정 경계, 다음 마일스톤을 설명 | screenshots 추가 |
+| Portfolio case study | pass | `docs/case_study.md`와 `docs/demo_package.md`가 문제, 데이터, 제품 surface, 캡처, 검증, 의사결정 경계를 설명 | 캡처 최신성 유지 |
