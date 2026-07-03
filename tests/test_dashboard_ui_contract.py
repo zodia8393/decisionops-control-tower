@@ -12,12 +12,18 @@ for path in [SRC, SCRIPTS]:
 from decisionops_control_tower.app import create_app
 from fastapi.testclient import TestClient
 from prepare_demo_state import prepare_demo_state
-from decisionops_control_tower.pipeline import DEFAULT_BIKE_ROOT, DEFAULT_WORKBENCH_ROOT, run
+from decisionops_control_tower.pipeline import run
 from verify_dashboard_ui import verify_dashboard_html
 
 
 def test_dashboard_ui_contract_matches_live_testclient_dashboard(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path))
+    client = TestClient(
+        create_app(
+            output_root=tmp_path,
+            bike_root=tmp_path / "missing-bike-root",
+            workbench_root=tmp_path / "missing-workbench-root",
+        )
+    )
     dashboard = client.get("/dashboard")
 
     result = verify_dashboard_html(dashboard.text)
@@ -28,14 +34,16 @@ def test_dashboard_ui_contract_matches_live_testclient_dashboard(tmp_path):
 
 
 def test_prepare_demo_state_can_archive_existing_store(tmp_path):
-    run(tmp_path)
+    missing_bike_root = tmp_path / "missing-bike-root"
+    missing_workbench_root = tmp_path / "missing-workbench-root"
+    run(tmp_path, missing_bike_root, missing_workbench_root)
     existing_db = tmp_path / "control_tower.sqlite"
     existing_db.write_text("placeholder", encoding="utf-8")
 
     payload = prepare_demo_state(
         tmp_path,
-        DEFAULT_BIKE_ROOT,
-        DEFAULT_WORKBENCH_ROOT,
+        missing_bike_root,
+        missing_workbench_root,
         reset_approval_store=True,
     )
 

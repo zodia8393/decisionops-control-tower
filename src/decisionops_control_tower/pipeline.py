@@ -134,7 +134,7 @@ def _collect_inputs(bike_root: Path, workbench_root: Path) -> dict[str, Any]:
     seoul_reports = bike_root / "seoul_ddareungi" / "reports"
     workbench_reports = workbench_root / "reports"
     workbench_processed = workbench_root / "data" / "processed"
-    return {
+    inputs = {
         "bike": {
             "snapshot_readiness": _read_json(
                 station_reports / "station_snapshot_readiness.json", {}
@@ -160,7 +160,149 @@ def _collect_inputs(bike_root: Path, workbench_root: Path) -> dict[str, Any]:
                 workbench_processed / "traffic_incident_decision_surface.json", {}
             ),
         },
+        "_fallbacks": {
+            "bike": not bike_root.exists(),
+            "workbench": not workbench_root.exists(),
+        },
     }
+    return _apply_missing_root_demo_fallbacks(inputs)
+
+
+def _demo_seoul_priority_rows() -> list[dict[str, str]]:
+    stations = [
+        ("ST-DEMO-001", "5891.한강버스 여의도 선착장", "37.5252", "126.9240", "remove_bikes", -42, 2.0, 60, 58, 2),
+        ("ST-DEMO-002", "207. 여의나루역 1번출구 앞", "37.5271", "126.9326", "remove_bikes", -34, 1.8, 50, 48, 2),
+        ("ST-DEMO-003", "502. 뚝섬유원지역 1번출구 앞", "37.5319", "127.0660", "send_bikes", 28, 1.7, 45, 3, 42),
+        ("ST-DEMO-004", "1153. 발산역 1번출구", "37.5589", "126.8377", "remove_bikes", -26, 1.6, 40, 39, 1),
+        ("ST-DEMO-005", "2301. 현대고등학교 건너편", "37.5246", "127.0228", "send_bikes", 24, 1.5, 36, 2, 34),
+        ("ST-DEMO-006", "1210. 롯데월드타워 앞", "37.5133", "127.1028", "remove_bikes", -22, 1.4, 38, 37, 1),
+        ("ST-DEMO-007", "3511. 응봉역 1번출구", "37.5506", "127.0347", "send_bikes", 18, 1.3, 30, 2, 28),
+        ("ST-DEMO-008", "1911. 구로디지털단지역 앞", "37.4853", "126.9015", "remove_bikes", -18, 1.3, 32, 31, 1),
+        ("ST-DEMO-009", "4217. 서울숲역 4번출구", "37.5446", "127.0446", "send_bikes", 16, 1.2, 28, 1, 27),
+        ("ST-DEMO-010", "765. 오목교역 3번출구", "37.5247", "126.8751", "remove_bikes", -15, 1.2, 30, 29, 1),
+        ("ST-DEMO-011", "152. 마포구민체육센터 앞", "37.5568", "126.8997", "send_bikes", 14, 1.1, 26, 2, 24),
+        ("ST-DEMO-012", "2406. 신도림역 2번출구", "37.5088", "126.8913", "remove_bikes", -12, 1.1, 25, 24, 1),
+    ]
+    rows: list[dict[str, str]] = []
+    for rank, (station_id, station_name, lat, lon, action, delta, severity, capacity, bikes, docks) in enumerate(
+        stations,
+        start=1,
+    ):
+        issue_type = "bike_shortage" if action == "send_bikes" else "dock_shortage"
+        rows.append(
+            {
+                "priority_rank": str(rank),
+                "station_id": station_id,
+                "station_name": station_name,
+                "issue_type": issue_type,
+                "recommended_action": action,
+                "severity_score": str(severity),
+                "recommended_bikes_delta": str(delta),
+                "capacity": str(capacity),
+                "bikes_available": str(bikes),
+                "docks_available": str(docks),
+                "bike_shortage_threshold": "3",
+                "dock_shortage_threshold": "3",
+                "bike_fill_rate": str(round(bikes / capacity, 3)),
+                "dock_fill_rate": str(round(docks / capacity, 3)),
+                "shared_rate": str(round((bikes / capacity) * 100, 1)),
+                "captured_at_kst": "2026-07-03T09:00:00+09:00",
+                "station_lat": lat,
+                "station_lon": lon,
+                "source": "demo_fixture_seoul_open_data_bikeList",
+            }
+        )
+    return rows
+
+
+def _demo_review_queue_rows(total: int = 42) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    priorities = ["P0", "P1", "P2"]
+    actions = ["refuse", "escalate", "approve"]
+    guardrails = ["deployment_no_go", "validation_not_ready", "high_uncertainty_review"]
+    for idx in range(1, total + 1):
+        requested_action = actions[(idx - 1) % len(actions)]
+        guardrail = guardrails[(idx - 1) % len(guardrails)]
+        rows.append(
+            {
+                "queue_id": f"HRQ-{idx:04d}",
+                "task_id": f"task_{idx:04d}",
+                "priority": priorities[(idx - 1) % len(priorities)],
+                "requested_action": requested_action,
+                "guardrail_hits": guardrail,
+                "review_question": (
+                    "자동 실행 또는 배포 전 운영자 판단이 필요합니다. "
+                    f"guardrail=['{guardrail}']. "
+                    f"근거: station=CB-DEMO-{idx:04d}, risk=0.72, incident=n/a, severity=1.4, "
+                    "snapshot=74/336, deploy=NO_GO."
+                ),
+            }
+        )
+    return rows
+
+
+def _demo_inputs() -> dict[str, Any]:
+    return {
+        "bike": {
+            "snapshot_readiness": {
+                "ready_for_prospective_validation": False,
+                "snapshot_count": 74,
+                "min_required_snapshots": 336,
+                "remaining_snapshots": 262,
+                "status": "NOT_READY",
+            },
+            "public_deploy": {
+                "decision": "NO_GO",
+                "blockers": ["demo fixture keeps public deployment blocked"],
+            },
+            "station_priority": [],
+            "inventory_snapshot": [],
+            "seoul_priority": _demo_seoul_priority_rows(),
+            "seoul_priority_summary": {
+                "status": "priority_ok",
+                "priority_rows": 50,
+                "candidate_rows": 1449,
+                "source": "demo_fixture_seoul_open_data_bikeList",
+            },
+            "seoul_validation_summary": {
+                "validation_status": "NOT_READY",
+                "snapshot_count": 11,
+                "min_snapshots_for_validation": 24,
+                "precision_at_50": 1.0,
+                "reason": "demo fixture mirrors pre-validation Seoul Ddareungi state",
+            },
+            "seoul_model_metrics": {"model_status": "demo_fixture"},
+        },
+        "workbench": {
+            "run_summary": {"status": "ok", "source": "demo_fixture"},
+            "prepublish_audit": {
+                "status": "public_ready",
+                "public_registry_allowed": True,
+            },
+            "eval_metrics": [
+                {"agent": "guarded_decision_agent", "task_success_rate": "1.0"}
+            ],
+            "holdout_metrics": [
+                {"agent": "guarded_decision_agent", "task_success_rate": "1.0"}
+            ],
+            "review_queue": _demo_review_queue_rows(),
+            "mcp_contract": {"status": "ok", "source": "demo_fixture"},
+            "incident_surface": {
+                "source_status": "demo_fixture",
+                "incidents": [{"incident_id": "demo-incident-001"}],
+            },
+        },
+    }
+
+
+def _apply_missing_root_demo_fallbacks(inputs: dict[str, Any]) -> dict[str, Any]:
+    fallback_flags = inputs.get("_fallbacks", {})
+    demo = _demo_inputs()
+    if fallback_flags.get("bike"):
+        inputs["bike"] = demo["bike"]
+    if fallback_flags.get("workbench"):
+        inputs["workbench"] = demo["workbench"]
+    return inputs
 
 
 def _impact_priority(severity: float, units: int) -> str:
@@ -268,6 +410,7 @@ def _impact_summary(cards: list[dict[str, Any]]) -> dict[str, Any]:
 def _build_control_state(inputs: dict[str, Any], impact_cards: list[dict[str, Any]]) -> dict[str, Any]:
     bike = inputs["bike"]
     workbench = inputs["workbench"]
+    fallbacks = inputs.get("_fallbacks", {})
     snapshot_ready = bool(bike["snapshot_readiness"].get("ready_for_prospective_validation"))
     bike_deploy_decision = bike["public_deploy"].get("decision", "UNKNOWN")
     seoul_validation = bike["seoul_validation_summary"]
@@ -324,6 +467,8 @@ def _build_control_state(inputs: dict[str, Any], impact_cards: list[dict[str, An
             "seoul_model_status": seoul_model.get("model_status", "unknown"),
             "workbench_prepublish_status": prepublish.get("status", "unknown"),
             "incident_source_status": workbench["incident_surface"].get("source_status", "unknown"),
+            "bike_demo_fallback": bool(fallbacks.get("bike")),
+            "workbench_demo_fallback": bool(fallbacks.get("workbench")),
         },
     }
 

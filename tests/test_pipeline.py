@@ -11,11 +11,17 @@ from decisionops_control_tower.pipeline import _build_impact_cards, _build_revie
 
 
 def test_control_tower_seed_writes_product_surface(tmp_path):
-    summary = run(tmp_path)
+    summary = run(
+        tmp_path,
+        bike_root=tmp_path / "missing-bike-root",
+        workbench_root=tmp_path / "missing-workbench-root",
+    )
 
     assert summary["status"] == "seed_ready"
     assert summary["demo_mode_ready"] is True
     assert summary["public_deploy_decision"] in {"GO", "NO_GO"}
+    assert summary["source_status"]["bike_demo_fallback"] is True
+    assert summary["source_status"]["workbench_demo_fallback"] is True
     assert summary["metrics"]["review_queue_items"] > 0
     assert summary["metrics"]["impact_card_rows"] > 0
     assert summary["metrics"]["impact_candidate_units_addressed"] > 0
@@ -67,7 +73,11 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
 
 
 def test_public_deploy_stays_blocked_until_bike_readiness(tmp_path):
-    summary = run(tmp_path)
+    summary = run(
+        tmp_path,
+        bike_root=tmp_path / "missing-bike-root",
+        workbench_root=tmp_path / "missing-workbench-root",
+    )
 
     if summary["source_status"]["bike_public_deploy_decision"] != "GO":
         assert summary["public_deploy_decision"] == "NO_GO"
