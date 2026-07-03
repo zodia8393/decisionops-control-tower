@@ -18,6 +18,7 @@ QUEUE_COLUMNS = [
     "guardrail_hits",
     "approval_state",
     "owner",
+    "review_context",
 ]
 
 DECISION_TO_STATE = {
@@ -47,6 +48,12 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return {key: row[key] for key in row.keys()}
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    if table != "control_queue":
+        raise ValueError(f"unsupported table for schema inspection: {table}")
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
 def _read_queue_csv(path: Path) -> list[dict[str, str]]:
     if not path.is_file():
         return []
@@ -72,11 +79,18 @@ def initialize_store(output_root: Path) -> dict[str, Any]:
                 guardrail_hits TEXT,
                 approval_state TEXT NOT NULL,
                 owner TEXT NOT NULL,
+                review_context TEXT NOT NULL DEFAULT '',
                 source_updated_at_utc TEXT NOT NULL,
                 updated_at_utc TEXT NOT NULL
             )
             """
         )
+        if "review_context" not in _table_columns(conn, "control_queue"):
+            try:
+                conn.execute("ALTER TABLE control_queue ADD COLUMN review_context TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS approval_history (
@@ -100,6 +114,7 @@ def initialize_store(output_root: Path) -> dict[str, Any]:
                 "guardrail_hits": row.get("guardrail_hits", ""),
                 "approval_state": row.get("approval_state", "pending_reviewer"),
                 "owner": row.get("owner", "ops_reviewer"),
+                "review_context": row.get("review_context", ""),
                 "source_updated_at_utc": now,
                 "updated_at_utc": now,
             }
@@ -109,11 +124,11 @@ def initialize_store(output_root: Path) -> dict[str, Any]:
                 """
                 INSERT INTO control_queue (
                     control_id, queue_id, priority, task_id, action, guardrail_hits,
-                    approval_state, owner, source_updated_at_utc, updated_at_utc
+                    approval_state, owner, review_context, source_updated_at_utc, updated_at_utc
                 )
                 VALUES (
                     :control_id, :queue_id, :priority, :task_id, :action, :guardrail_hits,
-                    :approval_state, :owner, :source_updated_at_utc, :updated_at_utc
+                    :approval_state, :owner, :review_context, :source_updated_at_utc, :updated_at_utc
                 )
                 ON CONFLICT(control_id) DO UPDATE SET
                     queue_id = excluded.queue_id,
@@ -121,6 +136,7 @@ def initialize_store(output_root: Path) -> dict[str, Any]:
                     task_id = excluded.task_id,
                     action = excluded.action,
                     guardrail_hits = excluded.guardrail_hits,
+                    review_context = excluded.review_context,
                     owner = CASE
                         WHEN control_queue.approval_state = 'pending_reviewer'
                         THEN excluded.owner

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 import json
 import logging
 import os
@@ -15,6 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from decisionops_control_tower.dashboard import render_dashboard
 from decisionops_control_tower.pipeline import (
     DEFAULT_BIKE_ROOT,
     DEFAULT_OUTPUT_ROOT,
@@ -129,250 +129,6 @@ def _artifact_status(path: Path) -> dict[str, Any]:
         "size_bytes": path.stat().st_size,
         "mtime_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(path.stat().st_mtime)),
     }
-
-
-def _render_dashboard(
-    state: dict[str, Any],
-    queue: list[dict[str, Any]],
-    history: list[dict[str, Any]],
-    summary: dict[str, Any],
-    ops: dict[str, Any],
-    impact_cards: list[dict[str, Any]],
-) -> str:
-    status = "DEMO READY" if state.get("demo_mode_ready") else "BLOCKED"
-    blockers = "".join(
-        f"<li>{html.escape(str(blocker))}</li>" for blocker in state.get("blockers", [])
-    )
-    if not blockers:
-        blockers = "<li>none</li>"
-    rows = []
-    for item in queue[:50]:
-        control_id = html.escape(str(item["control_id"]))
-        approval_state = html.escape(str(item["approval_state"]))
-        actions = ""
-        if item["approval_state"] == "pending_reviewer":
-            actions = (
-                f'<button type="button" data-control-id="{control_id}" data-decision="approve">'
-                "Approve</button>"
-                f'<button type="button" data-control-id="{control_id}" data-decision="reject">'
-                "Reject</button>"
-                f'<button type="button" data-control-id="{control_id}" '
-                'data-decision="needs_more_evidence">Need Evidence</button>'
-            )
-        rows.append(
-            "<tr>"
-            f"<td>{control_id}</td>"
-            f"<td>{html.escape(str(item['priority']))}</td>"
-            f"<td>{html.escape(str(item['task_id']))}</td>"
-            f"<td>{approval_state}</td>"
-            f"<td>{html.escape(str(item['guardrail_hits']))}</td>"
-            f"<td>{actions}</td>"
-            "</tr>"
-        )
-    if not rows:
-        rows.append("<tr><td colspan=\"6\">no review items</td></tr>")
-    history_rows = []
-    for item in history[:12]:
-        history_rows.append(
-            "<tr>"
-            f"<td>{html.escape(str(item['created_at_utc']))}</td>"
-            f"<td>{html.escape(str(item['control_id']))}</td>"
-            f"<td>{html.escape(str(item['decision']))}</td>"
-            f"<td>{html.escape(str(item['reviewer']))}</td>"
-            "</tr>"
-        )
-    if not history_rows:
-        history_rows.append("<tr><td colspan=\"4\">no approval history</td></tr>")
-    metrics = state.get("metrics", {})
-    by_state = summary.get("by_state", {})
-    auth_label = "ON" if ops.get("auth_required") else "OFF"
-    roles_label = ", ".join(ops.get("configured_roles", [])) or "demo"
-    artifact_rows = []
-    for name, item in ops.get("artifacts", {}).items():
-        artifact_rows.append(
-            "<tr>"
-            f"<td>{html.escape(str(name))}</td>"
-            f"<td>{html.escape(str(item.get('exists')))}</td>"
-            f"<td>{html.escape(str(item.get('mtime_utc')))}</td>"
-            "</tr>"
-        )
-    if not artifact_rows:
-        artifact_rows.append("<tr><td colspan=\"3\">no artifact status</td></tr>")
-    impact_rows = []
-    for item in impact_cards[:20]:
-        impact_rows.append(
-            "<tr>"
-            f"<td>{html.escape(str(item.get('impact_card_id', '')))}</td>"
-            f"<td>{html.escape(str(item.get('priority', '')))}</td>"
-            f"<td>{html.escape(str(item.get('station_name', '')))}</td>"
-            f"<td>{html.escape(str(item.get('recommended_action', '')))}</td>"
-            f"<td>{html.escape(str(item.get('candidate_units_addressed', '')))}</td>"
-            f"<td>{html.escape(str(item.get('guardrail_state', '')))}</td>"
-            "</tr>"
-        )
-    if not impact_rows:
-        impact_rows.append("<tr><td colspan=\"6\">no impact cards</td></tr>")
-    return f"""<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DecisionOps Control Tower</title>
-  <style>
-    :root {{
-      color-scheme: light;
-      --ink: #14213d;
-      --muted: #5f6c7b;
-      --line: #d9dee7;
-      --paper: #ffffff;
-      --surface: #f7f9fc;
-      --ok: #0b6e4f;
-      --warn: #9a3412;
-      --accent: #1f6feb;
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--ink);
-      background: var(--surface);
-    }}
-    header {{
-      background: var(--paper);
-      border-bottom: 1px solid var(--line);
-      padding: 24px 32px;
-    }}
-    main {{ padding: 24px 32px 40px; }}
-    h1, h2 {{ margin: 0; letter-spacing: 0; }}
-    h1 {{ font-size: 28px; }}
-    h2 {{ font-size: 18px; margin-top: 28px; }}
-    .status {{ margin-top: 8px; color: var(--muted); }}
-    .status strong {{ color: {"var(--ok)" if status == "DEMO READY" else "var(--warn)"}; }}
-    .metrics {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
-      margin-top: 20px;
-    }}
-    .metric {{
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      min-height: 86px;
-    }}
-    .metric span {{ color: var(--muted); font-size: 13px; }}
-    .metric strong {{ display: block; margin-top: 6px; font-size: 24px; }}
-    table {{
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      background: var(--paper);
-      border: 1px solid var(--line);
-    }}
-    th, td {{
-      border-bottom: 1px solid var(--line);
-      padding: 10px;
-      text-align: left;
-      vertical-align: top;
-      font-size: 14px;
-    }}
-    th {{ background: #eef3f9; }}
-    button {{
-      border: 1px solid var(--accent);
-      background: #ffffff;
-      color: var(--accent);
-      border-radius: 6px;
-      padding: 6px 8px;
-      margin: 0 4px 4px 0;
-      cursor: pointer;
-    }}
-    ul {{ background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 14px 28px; }}
-    @media (max-width: 760px) {{
-      header, main {{ padding-left: 16px; padding-right: 16px; }}
-      table {{ display: block; overflow-x: auto; white-space: nowrap; }}
-    }}
-  </style>
-</head>
-<body data-auth-required="{str(bool(ops.get("auth_required"))).lower()}">
-  <header>
-    <h1>DecisionOps Control Tower</h1>
-    <div class="status"><strong>{status}</strong> · public deploy: {html.escape(str(state.get("public_deploy_decision", "UNKNOWN")))}</div>
-  </header>
-  <main>
-    <section class="metrics">
-      <div class="metric"><span>Total queue</span><strong>{summary.get("total", 0)}</strong></div>
-      <div class="metric"><span>Pending</span><strong>{by_state.get("pending_reviewer", 0)}</strong></div>
-      <div class="metric"><span>Impact cards</span><strong>{metrics.get("impact_card_rows", 0)}</strong></div>
-      <div class="metric"><span>Candidate units</span><strong>{metrics.get("impact_candidate_units_addressed", 0)}</strong></div>
-      <div class="metric"><span>Guarded success</span><strong>{float(metrics.get("guarded_success_rate", 0.0)):.3f}</strong></div>
-      <div class="metric"><span>Holdout success</span><strong>{float(metrics.get("holdout_success_rate", 0.0)):.3f}</strong></div>
-      <div class="metric"><span>Incident rows</span><strong>{metrics.get("incident_rows", 0)}</strong></div>
-      <div class="metric"><span>Write auth</span><strong>{auth_label}</strong></div>
-      <div class="metric"><span>Roles</span><strong>{html.escape(roles_label)}</strong></div>
-    </section>
-    <h2>Blockers</h2>
-    <ul>{blockers}</ul>
-    <h2>Operations</h2>
-    <table>
-      <thead><tr><th>Artifact</th><th>Exists</th><th>Updated UTC</th></tr></thead>
-      <tbody>{''.join(artifact_rows)}</tbody>
-    </table>
-    <h2>Impact Cards</h2>
-    <table>
-      <thead><tr><th>Card</th><th>Priority</th><th>Station</th><th>Action</th><th>Units</th><th>Guardrail</th></tr></thead>
-      <tbody>{''.join(impact_rows)}</tbody>
-    </table>
-    <h2>Reviewer Queue</h2>
-    <table>
-      <thead><tr><th>Control ID</th><th>Priority</th><th>Task</th><th>State</th><th>Guardrails</th><th>Decision</th></tr></thead>
-      <tbody>{''.join(rows)}</tbody>
-    </table>
-    <h2>Approval History</h2>
-    <table>
-      <thead><tr><th>Time</th><th>Control ID</th><th>Decision</th><th>Reviewer</th></tr></thead>
-      <tbody>{''.join(history_rows)}</tbody>
-    </table>
-  </main>
-  <script>
-    document.addEventListener("click", async (event) => {{
-      const button = event.target.closest("button[data-decision]");
-      if (!button) return;
-      button.disabled = true;
-      const controlId = button.dataset.controlId;
-      const decision = button.dataset.decision;
-      const headers = {{"Content-Type": "application/json"}};
-      if (document.body.dataset.authRequired === "true") {{
-        let approvalCredential = sessionStorage.getItem("controlTowerCredential");
-        if (!approvalCredential) {{
-          approvalCredential = window.prompt("Control Tower approval credential");
-          if (!approvalCredential) {{
-            button.disabled = false;
-            return;
-          }}
-          sessionStorage.setItem("controlTowerCredential", approvalCredential);
-        }}
-        headers["X-Control-Tower-Token"] = approvalCredential;
-      }}
-      const response = await fetch(`/api/review-queue/${{controlId}}/decision`, {{
-        method: "POST",
-        headers,
-        body: JSON.stringify({{decision, reviewer: "dashboard_reviewer"}})
-      }});
-      if (!response.ok) {{
-        button.disabled = false;
-        if (response.status === 401) {{
-          sessionStorage.removeItem("controlTowerCredential");
-        }}
-        alert("Decision failed");
-        return;
-      }}
-      window.location.reload();
-    }});
-  </script>
-</body>
-</html>
-"""
 
 
 def create_app(
@@ -587,7 +343,16 @@ def create_app(
         cards = _read_json(app.state.output_root / "reports" / "impact_cards.json", [])
         if not isinstance(cards, list):
             cards = []
-        return HTMLResponse(_render_dashboard(state, queue, history, summary, ops_metrics(), cards))
+        return HTMLResponse(
+            render_dashboard(
+                state=state,
+                queue=queue,
+                history=history,
+                summary=summary,
+                ops=ops_metrics(),
+                impact_cards=cards,
+            )
+        )
 
     return app
 

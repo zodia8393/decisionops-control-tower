@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import csv
-import html
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from decisionops_control_tower.dashboard import render_dashboard
 
 
 DEFAULT_OUTPUT_ROOT = Path("/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower")
@@ -66,6 +68,64 @@ def _as_float(value: Any, default: float = 0.0) -> float:
 
 def _as_int(value: Any, default: int = 0) -> int:
     return int(round(_as_float(value, float(default))))
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _coordinate_status(lat: float | None, lon: float | None) -> str:
+    if lat is None or lon is None:
+        return "missing"
+    if not (33.0 <= lat <= 39.0 and 124.0 <= lon <= 132.0):
+        return "out_of_range"
+    return "valid"
+
+
+def _field_from_review_question(question: str, field: str) -> str:
+    marker = f"{field}="
+    start = question.find(marker)
+    if start == -1:
+        return ""
+    start += len(marker)
+    end = len(question)
+    for delimiter in [",", "."]:
+        candidate = question.find(delimiter, start)
+        if candidate != -1:
+            end = min(end, candidate)
+    return question[start:end].strip()
+
+
+def _build_review_context(row: dict[str, str]) -> str:
+    question = row.get("review_question", "")
+    station = _field_from_review_question(question, "station")
+    risk = _field_from_review_question(question, "risk")
+    snapshot = _field_from_review_question(question, "snapshot")
+    deploy = _field_from_review_question(question, "deploy")
+    requested = row.get("requested_action") or row.get("action") or "review"
+    action_label = {
+        "escalate": "사람 검토로 올릴지 판단",
+        "refuse": "자동 실행/공개 배포 거부 유지",
+        "approve": "승인 가능 여부 확인",
+    }.get(requested, "권고 처리 방향 확인")
+    evidence_parts = [f"요청: {action_label}"]
+    if station and station != "n/a":
+        evidence_parts.append(f"대상: bike-share benchmark 대여소 {station}")
+    if risk and risk != "n/a":
+        evidence_parts.append(f"위험 점수: {risk}")
+    if snapshot and snapshot != "n/a/n/a":
+        evidence_parts.append(f"스냅샷: {snapshot}")
+    if deploy and deploy != "n/a":
+        evidence_parts.append(f"배포 판단: {deploy}")
+    return " / ".join(evidence_parts)
 
 
 def _collect_inputs(bike_root: Path, workbench_root: Path) -> dict[str, Any]:
@@ -154,12 +214,17 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
         action = row.get("recommended_action", "monitor")
         impact_metric, impact_rationale = _impact_text(action, units)
         verified_units = units if validation_ready else ""
+        raw_lat = _optional_float(row.get("station_lat"))
+        raw_lon = _optional_float(row.get("station_lon"))
+        coord_status = _coordinate_status(raw_lat, raw_lon)
         card = {
             "impact_card_id": f"SEOUL-IMPACT-{idx:04d}",
             "domain": "seoul_ddareungi",
             "priority": _impact_priority(severity, units),
             "station_id": row.get("station_id", ""),
             "station_name": row.get("station_name", ""),
+            "station_lat": raw_lat if coord_status == "valid" else None,
+            "station_lon": raw_lon if coord_status == "valid" else None,
             "issue_type": row.get("issue_type", ""),
             "recommended_action": action,
             "recommended_bikes_delta": delta,
@@ -180,6 +245,7 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
             "blocker": blocker,
             "evidence": "seoul_ddareungi/reports/rebalancing_priority.csv; seoul_ddareungi/reports/validation_summary.json",
             "captured_at_kst": row.get("captured_at_kst", ""),
+            "coordinate_status": coord_status,
         }
         cards.append(card)
     return cards
@@ -271,10 +337,11 @@ def _build_review_queue(rows: list[dict[str, str]], limit: int = 50) -> list[dic
                 "queue_id": row.get("queue_id", f"queue-{idx}"),
                 "priority": row.get("priority", "P2"),
                 "task_id": row.get("task_id", ""),
-                "action": row.get("action", ""),
+                "action": row.get("requested_action") or row.get("action", ""),
                 "guardrail_hits": row.get("guardrail_hits", ""),
                 "approval_state": "pending_reviewer",
                 "owner": "ops_reviewer",
+                "review_context": _build_review_context(row),
             }
         )
     return queue
@@ -314,70 +381,16 @@ def _write_dashboard(
     queue: list[dict[str, Any]],
     impact_cards: list[dict[str, Any]],
 ) -> None:
-    status = "DEMO READY" if state["demo_mode_ready"] else "BLOCKED"
-    rows = "\n".join(
-        "<tr>"
-        + "".join(
-            f"<td>{html.escape(str(item[key]))}</td>"
-            for key in ["control_id", "priority", "task_id", "approval_state", "guardrail_hits"]
-        )
-        + "</tr>"
-        for item in queue[:20]
-    )
-    blockers = "".join(f"<li>{html.escape(blocker)}</li>" for blocker in state["blockers"])
-    impact_rows = "\n".join(
-        "<tr>"
-        + "".join(
-            f"<td>{html.escape(str(item[key]))}</td>"
-            for key in [
-                "impact_card_id",
-                "priority",
-                "station_name",
-                "recommended_action",
-                "candidate_units_addressed",
-                "guardrail_state",
-            ]
-        )
-        + "</tr>"
-        for item in impact_cards[:12]
-    )
     path.write_text(
-        f"""<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <title>DecisionOps Control Tower</title>
-  <style>
-    body {{ font-family: system-ui, sans-serif; margin: 32px; color: #17202a; }}
-    .metric {{ display: inline-block; border: 1px solid #d8dee9; padding: 12px; margin: 8px 8px 8px 0; min-width: 180px; }}
-    table {{ border-collapse: collapse; width: 100%; margin-top: 16px; }}
-    th, td {{ border: 1px solid #d8dee9; padding: 8px; text-align: left; }}
-    th {{ background: #f5f7fa; }}
-  </style>
-</head>
-<body>
-  <h1>DecisionOps Control Tower</h1>
-  <p><strong>{status}</strong> · public deploy: {html.escape(state['public_deploy_decision'])}</p>
-  <div class="metric">Review queue<br><strong>{state['metrics']['review_queue_items']}</strong></div>
-  <div class="metric">Impact cards<br><strong>{state['metrics']['impact_card_rows']}</strong></div>
-  <div class="metric">Guarded success<br><strong>{state['metrics']['guarded_success_rate']:.3f}</strong></div>
-  <div class="metric">Holdout success<br><strong>{state['metrics']['holdout_success_rate']:.3f}</strong></div>
-  <div class="metric">Incident rows<br><strong>{state['metrics']['incident_rows']}</strong></div>
-  <h2>Blockers</h2>
-  <ul>{blockers or '<li>none</li>'}</ul>
-  <h2>Impact Cards</h2>
-  <table>
-    <tr><th>Card</th><th>Priority</th><th>Station</th><th>Action</th><th>Units</th><th>Guardrail</th></tr>
-    {impact_rows or '<tr><td colspan="6">no impact cards</td></tr>'}
-  </table>
-  <h2>Reviewer Queue</h2>
-  <table>
-    <tr><th>Control ID</th><th>Priority</th><th>Task</th><th>State</th><th>Guardrails</th></tr>
-    {rows}
-  </table>
-</body>
-</html>
-""",
+        render_dashboard(
+            state=state,
+            queue=queue,
+            impact_cards=impact_cards,
+            summary={"total": len(queue), "by_state": {"pending_reviewer": len(queue)}},
+            ops={"auth_required": False, "configured_roles": [], "artifacts": {}},
+            include_actions=False,
+            include_script=False,
+        ),
         encoding="utf-8",
     )
 

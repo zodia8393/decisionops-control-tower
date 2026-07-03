@@ -64,13 +64,50 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
     assert "DecisionOps Control Tower" in dashboard.text
-    assert "Reviewer Queue" in dashboard.text
-    assert "Impact Cards" in dashboard.text
+    assert "검토 대기열" in dashboard.text
+    assert "따릉이 후보 조치" in dashboard.text
+    assert "오늘의 결론" in dashboard.text
+    assert "지금 해야 할 일" in dashboard.text
+    assert "검토 대기열 보기" in dashboard.text
+    assert "지도에서 보기" in dashboard.text
+    assert "지도에서 위치 확인" in dashboard.text
+    assert "서울 따릉이 후보 조치 위치 지도" in dashboard.text
+    assert "서울 따릉이 후보 조치 실제 지도 타일" in dashboard.text
+    assert "openstreetmap.org/export/embed.html" in dashboard.text
+    assert 'referrerpolicy="no-referrer"' in dashboard.text
+    assert "후보 번호 지도" in dashboard.text
+    assert "외부 지도 타일이 차단되면" in dashboard.text
+    assert "지도 표시 가능 후보" in dashboard.text
+    assert 'class="map-point' in dashboard.text
+    assert 'href="#ddareungi-action-1"' in dashboard.text
+    assert 'id="ddareungi-action-1"' in dashboard.text
+    assert "표에서 세부 보기" in dashboard.text
+    assert "판단 근거 보기" in dashboard.text
+    assert "권고 이유" in dashboard.text
+    assert "좌표 상태" in dashboard.text
+    assert "서울 따릉이 대여소 현황과 재배치 우선순위 산출물" in dashboard.text
+    assert "검토 기준 보기" in dashboard.text
+    assert "원천 근거 요약" in dashboard.text
+    assert "bike-share benchmark 대여소" in dashboard.text
+    assert "다음 결정 기준" in dashboard.text
+    assert "로컬 감사 기록" in dashboard.text
+    assert "운영 판단 상태 JSON" in dashboard.text
+    assert "회수 여부 검토" in dashboard.text
+    assert "무엇을 판단하나" in dashboard.text
+    assert "무엇을 검토하나" in dashboard.text
+    assert "Control ID" not in dashboard.text
+    assert "SEOUL-IMPACT" not in dashboard.text
+    assert "task_" not in dashboard.text
+    assert ":focus-visible" in dashboard.text
 
     impact = client.get("/api/impact-cards")
     assert impact.status_code == 200
     assert impact.json()["count"] > 0
-    assert impact.json()["items"][0]["guardrail_state"] in {"ready_for_review", "validation_not_ready"}
+    first_impact_item = impact.json()["items"][0]
+    assert first_impact_item["guardrail_state"] in {"ready_for_review", "validation_not_ready"}
+    assert first_impact_item["station_lat"]
+    assert first_impact_item["station_lon"]
+    assert first_impact_item["coordinate_status"] == "valid"
 
     openapi = client.get("/openapi.json")
     assert openapi.status_code == 200

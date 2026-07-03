@@ -21,11 +21,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument("--bike-root", default=str(DEFAULT_BIKE_ROOT))
     parser.add_argument("--workbench-root", default=str(DEFAULT_WORKBENCH_ROOT))
+    parser.add_argument(
+        "--auth-smoke",
+        action="store_true",
+        help="Also verify write-auth behavior with an in-process reviewer token without mutating data.",
+    )
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def _smoke_basic(args: argparse.Namespace) -> None:
     client = TestClient(
         create_app(
             output_root=Path(args.output_root),
@@ -55,6 +59,45 @@ def main() -> None:
         f"auth_required={payload['auth_required']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"
     )
+
+
+def _smoke_auth(args: argparse.Namespace) -> None:
+    token = "local-smoke-reviewer-token"
+    client = TestClient(
+        create_app(
+            output_root=Path(args.output_root),
+            bike_root=Path(args.bike_root),
+            workbench_root=Path(args.workbench_root),
+            refresh_artifacts=False,
+            auth_token=token,
+        )
+    )
+    health = client.get("/health")
+    health.raise_for_status()
+    payload = health.json()
+    if not payload["auth_required"] or payload["configured_roles"] != ["reviewer"]:
+        raise AssertionError("auth smoke expected reviewer auth to be enabled")
+    missing = client.post(
+        "/api/review-queue/CTRL-NOT-A-REAL-ID/decision",
+        json={"decision": "approve", "reviewer": "smoke"},
+    )
+    if missing.status_code != 401:
+        raise AssertionError(f"missing credential returned {missing.status_code}, expected 401")
+    authorized = client.post(
+        "/api/review-queue/CTRL-NOT-A-REAL-ID/decision",
+        headers={"X-Control-Tower-Token": token},
+        json={"decision": "approve", "reviewer": "smoke"},
+    )
+    if authorized.status_code != 404:
+        raise AssertionError(f"authorized missing item returned {authorized.status_code}, expected 404")
+    print("auth smoke complete: reviewer token accepted, missing token rejected, no queue row mutated")
+
+
+def main() -> None:
+    args = parse_args()
+    _smoke_basic(args)
+    if args.auth_smoke:
+        _smoke_auth(args)
 
 
 if __name__ == "__main__":
