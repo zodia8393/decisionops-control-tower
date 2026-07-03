@@ -114,6 +114,20 @@ scripts/verify_docker_deployment.sh
 scripts/verify_compose_deployment.sh
 ```
 
+8093 포트에서 로컬 장기 실행:
+
+```bash
+sg docker -c 'docker rm -f decisionops-control-tower-smoke 2>/dev/null || true'
+sg docker -c 'COMPOSE_PROJECT_NAME=decisionops-control-tower PORT=8093 docker compose up --build -d'
+curl -fsS http://127.0.0.1:8093/health | python3 -m json.tool
+```
+
+중지:
+
+```bash
+sg docker -c 'COMPOSE_PROJECT_NAME=decisionops-control-tower PORT=8093 docker compose down'
+```
+
 기존 8093 서버를 유지한 채 검증하려면:
 
 ```bash

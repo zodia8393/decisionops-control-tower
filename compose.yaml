@@ -3,6 +3,7 @@ services:
     build:
       context: .
     image: decisionops-control-tower:local
+    restart: unless-stopped
     ports:
       - "${PORT:-8093}:8093"
     environment:
