@@ -1,0 +1,1 @@
+"""Weekend portfolio project package."""

@@ -1,0 +1,30 @@
+services:
+  control-tower:
+    build:
+      context: .
+    image: decisionops-control-tower:local
+    ports:
+      - "${PORT:-8093}:8093"
+    environment:
+      OUTPUT_ROOT: /DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower
+      BIKE_ROOT: /DATA/HJ/prj/data-scientist-career/projects/bike-share-demand-resilience
+      WORKBENCH_ROOT: /DATA/HJ/prj/data-scientist-career/projects/agentic-decisionops-workbench
+      HOST: 0.0.0.0
+      PORT: 8093
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CONTROL_TOWER_API_TOKEN: ${CONTROL_TOWER_API_TOKEN:-}
+      CONTROL_TOWER_ROLE_TOKENS: ${CONTROL_TOWER_ROLE_TOKENS:-}
+    volumes:
+      - /DATA/HJ/prj/data-scientist-career/projects:/DATA/HJ/prj/data-scientist-career/projects
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8093/health', timeout=3).read()",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

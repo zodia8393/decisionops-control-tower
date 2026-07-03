@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decisionops-control-tower"
+version = "0.1.0"
+description = "Weekend data science portfolio project."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "matplotlib",
+  "seaborn",
+  "scipy",
+  "pyarrow",
+  "fastapi",
+  "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
