@@ -1,96 +1,87 @@
 # DecisionOps Control Tower
 
-## 결론
+[![ci](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml)
 
-Bike-share 운영 ML과 Agentic DecisionOps Workbench의 review/eval 산출물을 하나의 FastAPI/SQLite 기반 control state, reviewer queue, impact card, approval workflow, dashboard로 묶는 Stage 3 capstone product slice를 만들었다.
+서울 공공자전거 운영 문제를 **예측 점수**에서 끝내지 않고, 지도 기반 후보 조치, 사람 검토 대기열, 승인 기록, 배포 가능 여부 판단까지 연결한 AI/ML product slice입니다.
 
-## 핵심 수치
+기존 미국 bike-share benchmark에서 시작해 서울 따릉이 공개데이터 adapter로 확장했고, 실제 운영 문제인 **대여 불가, 반납 포화, 재배치 우선순위**를 reviewer-facing 의사결정 제품으로 구현했습니다.
 
-| 항목 | 값 | 의미 |
-|---|---:|---|
-| Upstream stages | 2 | bike-share operations ML + agentic review workbench |
-| Product surfaces | 15 | FastAPI, OpenAPI docs, control state JSON, review queue CSV, impact cards, SQLite approval store, Korean reviewer dashboard, map/fallback UI, dashboard UI verifier, RBAC-lite writes, auth smoke, structured logs, monitoring snapshot, deployment readiness gate, compose smoke |
-| Guarded success | 1.000 | Stage 2 main eval 성공률 |
-| Holdout success | 1.000 | Stage 2 adversarial prompt 성공률 |
-| Review queue | 42 | reviewer가 승인해야 할 pending decision |
-| Impact cards | 12 | 서울 따릉이 우선순위를 검증 상태와 함께 reviewer card로 투영 |
-| Incident source | 120 | NY 511 public event sample row 수 |
-| Public deploy | NO_GO | bike-share snapshot readiness가 아직 READY가 아님 |
+![DecisionOps Control Tower dashboard](docs/assets/demo/dashboard_overview.png)
 
-## 무엇을 만들었나
+## What This Shows
 
-| 구성 | 설명 |
+| 평가자가 봐야 할 것 | 구현 증거 |
 |---|---|
-| Control state | Stage 1/2 readiness, prepublish, metric, blocker를 하나의 JSON으로 통합 |
-| Review queue | Stage 2 human review queue를 Control Tower approval queue로 변환 |
-| Impact cards | 서울 따릉이 추천 action을 후보 이동량, confidence, evidence, blocker로 변환 |
-| FastAPI | `/health`, `/api/control-state`, `/api/review-queue`, approval POST, history, ops metrics, OpenAPI docs 제공 |
-| SQLite approval store | reviewer decision과 audit history를 `OUTPUT_ROOT/control_tower.sqlite`에 저장 |
-| Dashboard | 운영자가 blocker, ops metrics, queue, approval history를 한 화면에서 확인하고 승인 action을 실행 |
-| RBAC-lite/logging | `CONTROL_TOWER_ROLE_TOKENS` 설정 시 viewer/reviewer/admin 역할 분리, request log는 JSON으로 출력 |
-| Monitoring snapshot | `ops_metrics_snapshot.json`, `ops_metrics_history.jsonl`로 운영 상태를 산출물화 |
-| Deployment readiness | local/container/hosted/public deploy 판단을 `deployment_readiness.json`, `deployment_readiness.md`로 분리 |
-| Reports | final report, system card, data contract, quality scores 생성 |
+| Product DS 문제 정의 | 공공자전거 재배치 조치를 `GO/NO_GO`, blocker, review queue로 표현 |
+| Applied AI workflow | agentic review/eval 결과를 human approval workflow로 연결 |
+| ML output translation | 서울 따릉이 우선순위를 impact card, 후보 이동량, confidence, validation blocker로 변환 |
+| Backend/product delivery | FastAPI, OpenAPI, SQLite audit trail, Docker/Compose smoke |
+| Responsible deployment | private demo와 public deploy를 분리하고, validation 전 public claim 차단 |
+| Portfolio presentation | 실제 dashboard/map/review queue screenshot과 3분 시연 흐름 제공 |
 
-## 얻은 인사이트
+## Product Surfaces
 
-- Stage 2가 public-ready여도 최종 public deploy는 Stage 1 live readiness가 막을 수 있다.
-- Control Tower의 핵심은 모델 성능이 아니라 approval boundary와 blocker visibility다.
-- Impact card는 운영 후보를 선명하게 만들지만, Seoul validation이 READY 전이면 성과 claim이 아니라 local review evidence로 제한해야 한다.
-- Approval POST는 reviewer/admin 역할이 있을 때만 허용되고, 외부 실행을 호출하지 않고 local SQLite에만 기록한다.
-
-## 방법 선택 이유
-
-| 선택 | 이유 |
+| Surface | 설명 |
 |---|---|
-| Product slice after seed | upstream artifact contract를 검증한 뒤 API/persistence/dashboard를 붙여 납품 신호를 만들기 위해 |
-| Local write boundary | 예측·agent 산출물을 실제 field action으로 오해하지 않도록 하기 위해 |
-| Review queue 중심 | 운영 자동화의 안전 경계를 제품 workflow로 표현하기 위해 |
-| Impact card 분리 | 추천 action, 후보 효과, blocker를 approval decision 전에 검토하기 위해 |
-| API contract artifact | endpoint scope와 write policy가 흔들리지 않게 하기 위해 |
+| Korean reviewer dashboard | 오늘의 결론, blocker, 지도, impact cards, review queue, approval history |
+| Seoul Ddareungi impact cards | 대여소별 권고 action, 예상 완화량, 좌표 상태, 검증 상태 |
+| Approval API | `reviewer`/`admin` role token 기반 approve/reject/needs-more-evidence 기록 |
+| SQLite audit trail | reviewer decision을 local `control_tower.sqlite`에 보존 |
+| Ops metrics | queue, artifact freshness, auth 상태, public deploy decision |
+| Deployment gate | local/container/hosted/public `GO`/`NO_GO`를 분리 산출 |
 
-## 대표 시각화
+## Demo
 
-| 산출물 | 확인 위치 |
+| 장면 | 캡처 |
 |---|---|
-| Dashboard | `/dashboard` 또는 `dashboard/index.html` |
-| Control state | `reports/control_state.json` |
-| Review queue | `reports/control_review_queue.csv` |
-| Impact cards | `reports/impact_cards.csv`, `reports/impact_cards.json` |
-| API contract | `reports/api_contract.json` |
-| Approval DB | `control_tower.sqlite` |
-| Deployment gate | `reports/deployment_readiness.md` |
+| 서울 따릉이 후보 조치 지도 | <img src="docs/assets/demo/impact_map_section.png" alt="Seoul Ddareungi action map" width="520"> |
+| 검토 대기열 | <img src="docs/assets/demo/reviewer_queue.png" alt="Reviewer queue" width="520"> |
+| OpenAPI surface | <img src="docs/assets/demo/openapi_docs.png" alt="OpenAPI docs" width="520"> |
 
-핵심 문서는 다음 순서로 보면 된다.
+시연 흐름은 [docs/demo_package.md](docs/demo_package.md)에 정리했습니다.
 
-| 문서 | 용도 |
+## Current State
+
+| 항목 | 상태 |
 |---|---|
-| [docs/case_study.md](docs/case_study.md) | 포트폴리오용 문제 정의, 데이터, 제품화, 검증, 한계 |
-| [docs/demo_package.md](docs/demo_package.md) | 면접/포트폴리오용 캡처와 3분 시연 흐름 |
-| [docs/private_demo_runbook.md](docs/private_demo_runbook.md) | 인증이 켜진 비공개 시연 절차 |
-| [docs/system_design.md](docs/system_design.md) | 시스템 구조와 runtime surface |
-| [docs/data_flow_diagram.md](docs/data_flow_diagram.md) | 한국어 DFD와 안전 경계 |
-| [docs/reproducibility.md](docs/reproducibility.md) | 재현, smoke, deployment gate |
+| CI | GitHub Actions pass |
+| Local private demo | `GO` |
+| Container demo | `GO` |
+| Hosted private demo | credential 설정 전 `NO_GO` |
+| Public deploy | upstream readiness와 Seoul validation 전까지 `NO_GO` |
+| Review queue | 42건 |
+| Impact cards | 12건 |
+| Seoul validation | 최소 snapshot 기준 충족 전까지 `NOT_READY` |
 
-## 현재 상태
+`NO_GO`는 실패가 아니라 의도한 guardrail입니다. 서울 따릉이 validation이 충분해지기 전에는 성과 claim을 하지 않고 local review evidence로만 보여줍니다.
 
-- Stage: Control Tower product slice
-- CI/smoke: local `scripts/run_all.sh` pass
-- Local private demo: `GO`
-- Container demo: `GO`
-- Hosted private demo: credentials를 설정하기 전까지 `NO_GO`
-- Public deploy: upstream bike-share readiness와 Seoul validation이 READY 전까지 `NO_GO`
-- Dashboard: 한국어 reviewer UI, 따릉이 후보 지도, SVG fallback, 난해한 내부 ID 숨김, 판단 근거/검토 기준 drawer 포함
-- Impact card: Seoul validation `NOT_READY`면 local review only
-- 남은 blocker: upstream bike-share prospective readiness, Seoul validation READY, hosted runtime identity hardening
+## Architecture
 
-## 실행 방법
+```text
+Citi Bike benchmark artifacts
+Seoul Ddareungi public-data adapter
+Agentic DecisionOps Workbench eval/review artifacts
+        |
+        v
+DecisionOps Control Tower
+  - control_state.json
+  - impact_cards.json/csv
+  - review_queue.csv
+  - FastAPI + OpenAPI
+  - SQLite approval store
+  - Korean dashboard
+  - deployment readiness gate
+```
+
+자세한 설계는 [docs/system_design.md](docs/system_design.md), 한국어 DFD는 [docs/data_flow_diagram.md](docs/data_flow_diagram.md)를 봅니다.
+
+## Quick Start
 
 ```bash
+cd /workspace/prj/data-scientist-career/decisionops-control-tower
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-export OUTPUT_ROOT=/tmp/decisionops-control-tower
 scripts/run_all.sh
 ```
 
@@ -101,31 +92,39 @@ export OUTPUT_ROOT=/tmp/decisionops-control-tower
 scripts/run_server.sh
 ```
 
-확인:
+주요 URL:
 
-| surface | URL |
+| Surface | URL |
 |---|---|
 | Dashboard | `http://127.0.0.1:8093/dashboard` |
 | Health | `http://127.0.0.1:8093/health` |
 | Impact cards | `http://127.0.0.1:8093/api/impact-cards` |
-| OpenAPI docs | `http://127.0.0.1:8093/docs` |
 | Ops metrics | `http://127.0.0.1:8093/api/ops-metrics` |
+| OpenAPI | `http://127.0.0.1:8093/docs` |
 
-쓰기 인증을 켜려면:
+## Private Demo Auth
+
+쓰기 인증을 켜면 approval write는 `reviewer` 또는 `admin` role만 가능합니다. Token 값은 log, report, screenshot에 출력하지 않습니다.
 
 ```bash
 export CONTROL_TOWER_ROLE_TOKENS="viewer:<viewer-credential>,reviewer:<reviewer-credential>,admin:<admin-credential>"
-scripts/run_server.sh
-```
-
-인증이 켜진 private demo 경계를 검증하려면:
-
-```bash
 PYTHONPATH=src scripts/verify_private_demo.py
 PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 ```
 
-Docker/compose 진단:
+Runbook: [docs/private_demo_runbook.md](docs/private_demo_runbook.md)
+
+## Verification
+
+```bash
+python3 -m compileall -q src tests scripts
+PYTHONPATH=src python3 -m pytest -q
+scripts/run_all.sh
+PYTHONPATH=src scripts/verify_dashboard_ui.py
+PYTHONPATH=src scripts/smoke_api.py --auth-smoke
+```
+
+Docker/Compose:
 
 ```bash
 scripts/check_docker_ready.py
@@ -133,71 +132,27 @@ scripts/verify_docker_deployment.sh
 scripts/verify_compose_deployment.sh
 ```
 
-대시보드/UI 계약 검증:
-
-```bash
-PYTHONPATH=src scripts/verify_dashboard_ui.py
-PYTHONPATH=src scripts/smoke_api.py --auth-smoke
-```
-
-포트폴리오 캡처 생성:
+포트폴리오 캡처 재생성:
 
 ```bash
 scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 ```
 
-데모 상태를 다시 만들려면:
+## Repository Guide
 
-```bash
-PYTHONPATH=src scripts/prepare_demo_state.py
-```
+| 경로 | 내용 |
+|---|---|
+| [src/decisionops_control_tower](src/decisionops_control_tower) | pipeline, FastAPI app, dashboard renderer, SQLite store |
+| [scripts](scripts) | smoke, deployment readiness, Docker verification, screenshot capture |
+| [tests](tests) | API, pipeline, dashboard contract, private auth, deployment gate tests |
+| [docs/case_study.md](docs/case_study.md) | 문제 정의와 포트폴리오 case study |
+| [docs/demo_package.md](docs/demo_package.md) | screenshot 기반 3분 시연 패키지 |
+| [docs/reproducibility.md](docs/reproducibility.md) | 재현 명령과 성공 기준 |
 
-기존 승인 이력을 보존하면서 깨끗한 pending 상태로 시연하려면 SQLite DB를 `backups/`로 이동한 뒤 재시드한다.
+## Boundaries
 
-```bash
-PYTHONPATH=src scripts/prepare_demo_state.py --reset-approval-store
-```
-
-8093 포트에서 로컬 장기 실행:
-
-```bash
-sg docker -c 'docker rm -f decisionops-control-tower-smoke 2>/dev/null || true'
-sg docker -c 'COMPOSE_PROJECT_NAME=decisionops-control-tower PORT=8093 docker compose up --build -d'
-curl -fsS http://127.0.0.1:8093/health | python3 -m json.tool
-```
-
-중지:
-
-```bash
-sg docker -c 'COMPOSE_PROJECT_NAME=decisionops-control-tower PORT=8093 docker compose down'
-```
-
-기존 8093 서버를 유지한 채 검증하려면:
-
-```bash
-CONTAINER_NAME=decisionops-control-tower-codex-smoke PORT=8095 DOCKER_CLEANUP=1 scripts/verify_docker_deployment.sh
-COMPOSE_PROJECT_NAME=decisionops-control-tower-compose-smoke PORT=8094 COMPOSE_CLEANUP=1 scripts/verify_compose_deployment.sh
-```
-
-## 산출물 확인 방법
-
-| 보고 싶은 것 | 명령 | 위치 |
-|---|---|---|
-| Full run | `scripts/run_all.sh` | `reports/`, `dashboard/` |
-| Dashboard | `scripts/run_all.sh` | `dashboard/index.html` |
-| Dashboard UI verification | `scripts/verify_dashboard_ui.py` | live/TestClient dashboard contract |
-| Demo screenshots | `scripts/capture_demo_screenshots.py` | `docs/assets/demo/` |
-| Private demo auth verification | `scripts/verify_private_demo.py` | role-token write boundary |
-| Control state | `scripts/run_all.sh` | `reports/control_state.json` |
-| Impact cards | `scripts/run_all.sh` | `reports/impact_cards.csv`, `reports/impact_cards.json` |
-| API contract | `scripts/run_all.sh` | `reports/api_contract.json` |
-| SQLite approval history | `scripts/run_all.sh` 또는 server | `control_tower.sqlite` |
-| Ops monitoring | `scripts/run_all.sh` | `reports/ops_metrics_snapshot.json`, `reports/ops_metrics_history.jsonl` |
-| Deployment readiness | `scripts/run_all.sh` | `reports/deployment_readiness.json`, `reports/deployment_readiness.md` |
-
-## 한계
-
-- Approval persistence는 local SQLite이며 token-role 기반 RBAC-lite다. 계정, 세션, 감사자별 권한정책은 아직 별도 identity provider가 아니다.
-- Public deploy는 bike-share prospective snapshot readiness가 READY가 될 때까지 `NO_GO`다.
-- 지도는 OpenStreetMap iframe을 쓰며, 외부 타일이 차단될 때도 SVG 후보 번호 지도가 남도록 설계했다.
-- 좌표가 없거나 서울 권역 밖이면 `station_lat/station_lon`을 `null`로 두고 `coordinate_status`로 명시한다. `0.0`으로 숨기지 않는다.
+- Approval POST는 local SQLite audit trail에만 기록합니다.
+- 실제 자전거 재배치, 외부 dispatch, upstream artifact mutation은 하지 않습니다.
+- Public deploy는 upstream readiness와 hosted hardening 전까지 `NO_GO`입니다.
+- 좌표 누락 또는 서울 권역 밖 좌표는 `0.0`으로 숨기지 않고 `null`과 `coordinate_status`로 표시합니다.
+- `.env`, API key, token 값은 문서와 log에 출력하지 않습니다.
