@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 from typing import Any
@@ -72,6 +73,21 @@ def _run(command: list[str], timeout: int = 15) -> dict[str, Any]:
     }
 
 
+def _run_docker(command: list[str], timeout: int = 15) -> dict[str, Any]:
+    direct = _run(command, timeout=timeout)
+    if direct["ok"] or command[:1] != ["docker"] or shutil.which("sg") is None:
+        return direct
+
+    quoted = " ".join(shlex.quote(part) for part in command)
+    via_group = _run(["sg", "docker", "-c", quoted], timeout=timeout)
+    if via_group["ok"]:
+        via_group["via_group"] = "docker"
+        via_group["direct_stderr"] = direct["stderr"]
+        return via_group
+    direct["sg_docker_attempt"] = via_group
+    return direct
+
+
 def inspect_docker() -> dict[str, Any]:
     docker_path = shutil.which("docker")
     payload: dict[str, Any] = {
@@ -86,10 +102,10 @@ def inspect_docker() -> dict[str, Any]:
     if docker_path is None:
         return payload
 
-    version = _run(["docker", "--version"])
-    info = _run(["docker", "info", "--format", "{{json .ServerVersion}}"])
-    compose = _run(["docker", "compose", "version"])
-    buildx = _run(["docker", "buildx", "version"])
+    version = _run_docker(["docker", "--version"])
+    info = _run_docker(["docker", "info", "--format", "{{json .ServerVersion}}"])
+    compose = _run_docker(["docker", "compose", "version"])
+    buildx = _run_docker(["docker", "buildx", "version"])
     payload.update(
         {
             "docker_version": version["stdout"] if version["ok"] else None,

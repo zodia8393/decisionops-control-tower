@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 from typing import Any
@@ -22,6 +23,21 @@ def _run(command: list[str]) -> dict[str, Any]:
     }
 
 
+def _run_docker(command: list[str]) -> dict[str, Any]:
+    direct = _run(command)
+    if direct["ok"] or command[:1] != ["docker"] or shutil.which("sg") is None:
+        return direct
+
+    quoted = " ".join(shlex.quote(part) for part in command)
+    via_group = _run(["sg", "docker", "-c", quoted])
+    if via_group["ok"]:
+        via_group["via_group"] = "docker"
+        via_group["direct_stderr"] = direct["stderr"]
+        return via_group
+    direct["sg_docker_attempt"] = via_group
+    return direct
+
+
 def main() -> None:
     docker_path = shutil.which("docker")
     payload: dict[str, Any] = {
@@ -33,9 +49,9 @@ def main() -> None:
         "details": {},
     }
     if docker_path:
-        version = _run(["docker", "--version"])
-        info = _run(["docker", "info", "--format", "{{json .ServerVersion}}"])
-        compose = _run(["docker", "compose", "version"])
+        version = _run_docker(["docker", "--version"])
+        info = _run_docker(["docker", "info", "--format", "{{json .ServerVersion}}"])
+        compose = _run_docker(["docker", "compose", "version"])
         payload["docker_version"] = version["stdout"] if version["ok"] else None
         payload["daemon_ready"] = info["ok"]
         payload["compose_ready"] = compose["ok"]

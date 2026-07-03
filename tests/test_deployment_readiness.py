@@ -10,7 +10,7 @@ for path in [SRC, SCRIPTS]:
         sys.path.insert(0, str(path))
 
 from decisionops_control_tower.pipeline import DEFAULT_BIKE_ROOT, DEFAULT_WORKBENCH_ROOT, run
-from write_deployment_readiness import collect_readiness, write_readiness
+from write_deployment_readiness import collect_readiness, write_readiness, _run_docker
 
 
 READY_DOCKER = {
@@ -63,3 +63,24 @@ def test_deployment_readiness_can_require_auth_for_hosted_demo(tmp_path, monkeyp
 
     assert payload["decisions"]["hosted_private_demo"] == "NO_GO"
     assert "write auth credentials are not configured" in payload["blockers"]["hosted_private_demo"]
+
+
+def test_docker_probe_falls_back_to_sg_group(monkeypatch):
+    calls = []
+
+    def fake_run(command, timeout=15):
+        calls.append(command)
+        if command[:2] == ["docker", "info"]:
+            return {"ok": False, "returncode": 1, "stdout": "", "stderr": "permission denied"}
+        if command[:3] == ["sg", "docker", "-c"]:
+            return {"ok": True, "returncode": 0, "stdout": '"29.1.3"', "stderr": ""}
+        return {"ok": True, "returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setattr("write_deployment_readiness.shutil.which", lambda name: "/usr/bin/sg" if name == "sg" else "/usr/bin/docker")
+    monkeypatch.setattr("write_deployment_readiness._run", fake_run)
+
+    result = _run_docker(["docker", "info", "--format", "{{json .ServerVersion}}"])
+
+    assert result["ok"] is True
+    assert result["via_group"] == "docker"
+    assert calls[1][:3] == ["sg", "docker", "-c"]
