@@ -14,4 +14,5 @@
 | Seoul impact card | pass | `/api/impact-cards`와 `reports/impact_cards.csv/json`이 추천 action, 후보 이동량, confidence, evidence, blocker를 노출 | Seoul validation READY 후 verified improvement 채우기 |
 | privacy publication gate | pass | raw 내부 data/token/write action 미포함 | release artifact scan 유지 |
 | CI/tests/smoke | pass | `scripts/run_all.sh`와 pytest 통과 | CI 실행 유지 |
-| GitHub/deploy/runbook | pass | Dockerfile, compose, `.env.example`, server script, OpenAPI/ops smoke, deployment readiness gate, docker smoke, compose smoke 존재; public deploy는 upstream readiness 때문에 `NO_GO` | hosted demo 배포 여부 결정 |
+| GitHub/deploy/runbook | pass | Dockerfile, compose, `.env.example`, server script, OpenAPI/ops smoke, private demo auth verifier, deployment readiness gate, docker smoke, compose smoke 존재; public deploy는 upstream readiness 때문에 `NO_GO` | hosted demo 배포 여부 결정 |
+| Portfolio case study | pass | `docs/case_study.md`가 문제, 데이터, 제품 surface, 검증, 의사결정 경계, 다음 마일스톤을 설명 | screenshots 추가 |

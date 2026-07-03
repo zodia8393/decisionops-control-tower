@@ -36,6 +36,13 @@ export CONTROL_TOWER_ROLE_TOKENS="viewer:<viewer-credential>,reviewer:<reviewer-
 scripts/run_server.sh
 ```
 
+인증 경계 검증:
+
+```bash
+PYTHONPATH=src python3 scripts/verify_private_demo.py
+PYTHONPATH=src python3 scripts/verify_private_demo.py --url http://127.0.0.1:8093
+```
+
 Docker smoke:
 
 ```bash
@@ -58,11 +65,17 @@ PYTHONPATH=src python3 scripts/write_deployment_readiness.py --output-root /DATA
 PYTHONPATH=src python3 scripts/write_deployment_readiness.py --require-auth --require-docker
 ```
 
-Dashboard/UI와 인증 smoke:
+Dashboard/UI와 기본 인증 smoke:
 
 ```bash
 PYTHONPATH=src python3 scripts/verify_dashboard_ui.py
 PYTHONPATH=src python3 scripts/smoke_api.py --auth-smoke
+```
+
+`CONTROL_TOWER_ROLE_TOKENS` 설정 후 private demo 인증 smoke:
+
+```bash
+PYTHONPATH=src python3 scripts/verify_private_demo.py
 ```
 
 깨끗한 demo state 재시드:
@@ -88,6 +101,7 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 - 산출물 root 아래 `reports/run_summary.json` 또는 동등한 실행 요약이 생성됩니다.
 - `scripts/smoke_api.py`가 `/health`, `/api/review-queue`, `/dashboard`, `/openapi.json`를 확인합니다.
 - `scripts/smoke_api.py --auth-smoke`가 인증 없는 write 요청을 401로 막고, reviewer token이 인증 경계를 통과하는지 확인합니다.
+- `scripts/verify_private_demo.py`가 실제 role-token 설정에서 viewer write 차단, reviewer/admin write 인증, credential 비출력을 확인합니다.
 - `scripts/verify_dashboard_ui.py`가 한국어 UI, primary CTA, 지도 iframe/SVG fallback, 좌표 상태, 판단 근거 drawer, 내부 ID 숨김을 확인합니다.
 - `/api/ops-metrics`가 artifact freshness, queue, auth 상태를 반환합니다.
 - `scripts/write_monitoring_snapshot.py`가 latest snapshot과 history JSONL을 생성합니다.
