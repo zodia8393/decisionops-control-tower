@@ -1,16 +1,15 @@
 {
-  "captured_at_utc": "2026-07-03T05:23:32+00:00",
-  "base_url": "http://127.0.0.1:8093",
+  "captured_at_utc": "2026-07-05T00:16:34+00:00",
+  "base_url": "http://127.0.0.1:8097",
   "health": {
     "status": "ok",
     "demo_mode_ready": true,
     "public_deploy_decision": "NO_GO",
     "impact_card_rows": 12,
     "queue": {
-      "total": 42,
+      "total": 50,
       "by_state": {
-        "needs_more_evidence": 1,
-        "pending_reviewer": 41
+        "pending_reviewer": 50
       }
     },
     "auth_required": false
@@ -19,56 +18,86 @@
     {
       "name": "dashboard_overview",
       "path": "docs/assets/demo/dashboard_overview.png",
-      "url": "http://127.0.0.1:8093/dashboard",
+      "url": "http://127.0.0.1:8097/dashboard",
       "selector": null,
       "full_page": false,
-      "size_bytes": 356262
+      "size_bytes": 171174
     },
     {
       "name": "dashboard_full_page",
       "path": "docs/assets/demo/dashboard_full_page.png",
-      "url": "http://127.0.0.1:8093/dashboard",
+      "url": "http://127.0.0.1:8097/dashboard",
       "selector": null,
       "full_page": true,
-      "size_bytes": 2044773
+      "size_bytes": 2134971
     },
     {
       "name": "impact_map_section",
       "path": "docs/assets/demo/impact_map_section.png",
-      "url": "http://127.0.0.1:8093/dashboard#impact-map",
+      "url": "http://127.0.0.1:8097/dashboard#impact-map",
       "selector": "#impact-map",
-      "size_bytes": 523918
+      "size_bytes": 164921
     },
     {
       "name": "impact_map",
       "path": "docs/assets/demo/impact_map.png",
-      "url": "http://127.0.0.1:8093/dashboard#impact-map",
+      "url": "http://127.0.0.1:8097/dashboard#impact-map",
       "selector": "#impact-map",
       "full_page": false,
-      "size_bytes": 548870
+      "size_bytes": 186317
+    },
+    {
+      "name": "policy_audit_section",
+      "path": "docs/assets/demo/policy_audit_section.png",
+      "url": "http://127.0.0.1:8097/dashboard#policy-audit",
+      "selector": "#policy-audit",
+      "size_bytes": 98540
+    },
+    {
+      "name": "policy_audit",
+      "path": "docs/assets/demo/policy_audit.png",
+      "url": "http://127.0.0.1:8097/dashboard#policy-audit",
+      "selector": "#policy-audit",
+      "full_page": false,
+      "size_bytes": 199351
+    },
+    {
+      "name": "reviewer_action_plan_section",
+      "path": "docs/assets/demo/reviewer_action_plan_section.png",
+      "url": "http://127.0.0.1:8097/dashboard#action-plan",
+      "selector": "#action-plan",
+      "size_bytes": 155629
+    },
+    {
+      "name": "reviewer_action_plan",
+      "path": "docs/assets/demo/reviewer_action_plan.png",
+      "url": "http://127.0.0.1:8097/dashboard#action-plan",
+      "selector": "#action-plan",
+      "full_page": false,
+      "size_bytes": 228992
     },
     {
       "name": "reviewer_queue_section",
       "path": "docs/assets/demo/reviewer_queue_section.png",
-      "url": "http://127.0.0.1:8093/dashboard#reviewer-queue",
+      "url": "http://127.0.0.1:8097/dashboard#reviewer-queue",
       "selector": "#reviewer-queue",
-      "size_bytes": 987667
+      "size_bytes": 1182536
     },
     {
       "name": "reviewer_queue",
       "path": "docs/assets/demo/reviewer_queue.png",
-      "url": "http://127.0.0.1:8093/dashboard#reviewer-queue",
+      "url": "http://127.0.0.1:8097/dashboard#reviewer-queue",
       "selector": "#reviewer-queue",
       "full_page": false,
-      "size_bytes": 178084
+      "size_bytes": 177921
     },
     {
       "name": "openapi_docs",
       "path": "docs/assets/demo/openapi_docs.png",
-      "url": "http://127.0.0.1:8093/docs",
+      "url": "http://127.0.0.1:8097/docs",
       "selector": null,
       "full_page": false,
-      "size_bytes": 93693
+      "size_bytes": 102693
     }
   ]
 }

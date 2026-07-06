@@ -9,6 +9,7 @@
 1. Stage 1 deploy readiness와 Stage 2 prepublish/eval gate를 하나의 release state로 결합할 수 있는가?
 2. Agentic review queue를 reviewer approval queue로 변환할 때 unsafe write action을 만들지 않는가?
 3. Demo mode와 public deploy를 분리해 과장된 배포 판단을 막는가?
+4. Impact card를 public claim으로 바로 공개하는 기준선보다 guarded/capacity policy가 더 안전한가?
 
 ## 분할 원칙
 
@@ -23,11 +24,15 @@
 | upstream baseline agent | Stage 2 비교 기준 |
 | guarded decision agent | Stage 2 decision/eval source |
 | control-state rules | Stage 3 release/blocker orchestration |
+| unsafe auto-publish policy | 미검증 impact claim 기준선 |
+| impact-guarded capacity policy | 검토 용량 제한 하 우선순위 정렬 |
 
 ## Ablation
 
 - Stage 2 `baseline_single_agent` vs `guarded_decision_agent`.
 - Stage 3 product slice는 API/write persistence가 없는 seed 대비 FastAPI, SQLite history, dashboard approval action을 추가한다.
+- Stage 3 impact policy audit은 `unsafe_auto_publish`와 guarded policies를 같은 impact cards로 비교한다.
+- Reviewer action plan은 source order와 impact-guarded order를 비교해 제한된 검토 용량에서 먼저 볼 후보를 정한다.
 - Approval POST는 local SQLite에만 기록되며 external dispatch/write는 하지 않는다.
 
 ## 평가 지표
@@ -37,10 +42,13 @@
 - `review_queue_items`: reviewer backlog 수.
 - `approval_history_rows`: reviewer decision audit trail 수.
 - `guarded_success_rate`, `holdout_success_rate`: Stage 2 agent gate.
+- `impact_unsupported_claim_units_avoided`: unsafe baseline 대비 guarded policy가 차단한 미검증 claim 단위.
+- `reviewer_action_plan_candidate_units`: 상위 검토 계획이 커버하는 후보 이동량.
 
 ## 불확실성 및 robustness
 
 - Bike-share prospective readiness가 `READY`가 아니면 public deploy는 `NO_GO`다.
+- Seoul validation이 `READY`여도 public deploy readiness가 `GO`가 아니면 public claim은 blocked 상태다.
 - NY 511 incident sample은 public historical data이며 live dispatch authority가 아니다.
 - Approval write path는 local SQLite에 제한하고 upstream artifact와 field action은 변경하지 않는다.
 
@@ -49,3 +57,4 @@
 - Missing upstream artifact는 empty/default로 처리하지만 blocker에 반영한다.
 - Guarded/holdout success가 0.99 미만이면 demo readiness를 차단한다.
 - Review queue가 0건이면 product workflow가 비어 있다고 보고 blocker로 둔다.
+- Policy audit에서 guarded policy의 unsupported claim 단위가 0이 아니면 public publication gate를 통과하지 못한다.

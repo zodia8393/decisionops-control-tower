@@ -664,6 +664,12 @@ DISPLAY_LABELS = {
     "send_bikes": "자전거 보충",
     "remove_bikes": "자전거 회수",
     "monitor": "모니터링",
+    "unsafe_auto_publish": "무검토 공개 기준선",
+    "guarded_all_review": "전량 검토 후 로컬 근거",
+    "source_order_capacity": "원천 순서 검토",
+    "impact_guarded_capacity": "영향 우선 검토",
+    "approve_local_review_only": "로컬 검토 승인",
+    "approve_for_private_demo": "비공개 시연 승인",
     "deployment_no_go": "배포 보류",
     "high_uncertainty_review": "불확실성 높음",
     "unsafe_write_action": "쓰기 위험",
@@ -682,6 +688,9 @@ BLOCKER_LABELS = {
     "Seoul Ddareungi impact cards are local-review only until validation is READY": (
         "서울 따릉이 impact card는 검증 상태가 READY가 될 때까지 로컬 검토 전용입니다."
     ),
+    "Seoul Ddareungi impact cards are local-review only until validation and deploy readiness are READY": (
+        "서울 따릉이 impact card는 검증과 배포 readiness가 모두 READY가 될 때까지 로컬 검토 전용입니다."
+    ),
 }
 
 
@@ -690,6 +699,8 @@ ARTIFACT_LABELS = {
     "review_queue": "검토 대기열 CSV",
     "api_contract": "API 계약 JSON",
     "impact_cards": "따릉이 후보 조치 JSON",
+    "impact_policy_audit": "영향 정책 비교 JSON",
+    "reviewer_action_plan": "검토 실행 계획 JSON",
     "dashboard": "대시보드 HTML",
     "sqlite_database": "승인 이력 SQLite",
     "ops_metrics_snapshot": "운영 상태 스냅샷",
@@ -1177,6 +1188,50 @@ def _render_impact_rows(impact_cards: list[dict[str, Any]], limit: int) -> list[
     return rows or [_empty_row(5, "사용 가능한 따릉이 후보 조치가 없습니다.")]
 
 
+def _policy_note(item: dict[str, Any]) -> str:
+    if str(item.get("audit_result")) == "fail":
+        return "이 기준선은 미검증 성과 claim을 만들 수 있어 운영 정책상 허용하지 않습니다."
+    if _as_float(item.get("blocked_public_claim_units")) > 0:
+        return "미검증 단위는 공개하지 않고 reviewer evidence로만 묶습니다."
+    return "검토 용량 안에서 후보를 정렬하되 public claim boundary를 유지합니다."
+
+
+def _render_policy_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
+    rendered = []
+    for item in rows[:limit]:
+        rendered.append(
+            "<tr>"
+            f"<td>{_id_cell(_display(item.get('policy', '')), _policy_note(item))}</td>"
+            f"<td>{_escape(item.get('review_capacity', ''))}</td>"
+            f"<td>{_escape(item.get('reviewed_candidate_units', ''))}</td>"
+            f"<td>{_escape(item.get('unsupported_claim_units', ''))}</td>"
+            f"<td>{_pill(item.get('audit_result', ''))}</td>"
+            "</tr>"
+        )
+    return rendered or [_empty_row(5, "영향 정책 비교 산출물이 없습니다.")]
+
+
+def _action_title(item: dict[str, Any]) -> str:
+    station = str(item.get("station_name") or "대상 대여소").strip()
+    action = _display(item.get("recommended_action", "monitor"))
+    units = item.get("candidate_units_addressed", "")
+    return f"{station}: {action} {units}대 검토"
+
+
+def _render_action_plan_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
+    rendered = []
+    for item in rows[:limit]:
+        rendered.append(
+            "<tr>"
+            f"<td>{_id_cell(_action_title(item), item.get('next_evidence_needed', ''))}</td>"
+            f"<td>{_pill(item.get('priority', ''))}</td>"
+            f"<td>{_escape(item.get('cumulative_candidate_units', ''))}</td>"
+            f"<td>{_pill(item.get('reviewer_decision', ''))}</td>"
+            "</tr>"
+        )
+    return rendered or [_empty_row(4, "검토 실행 계획 산출물이 없습니다.")]
+
+
 def _render_queue_rows(
     queue: list[dict[str, Any]],
     limit: int,
@@ -1251,6 +1306,8 @@ def render_dashboard(
     state: dict[str, Any],
     queue: list[dict[str, Any]],
     impact_cards: list[dict[str, Any]],
+    impact_policy_audit: list[dict[str, Any]] | None = None,
+    reviewer_action_plan: list[dict[str, Any]] | None = None,
     history: list[dict[str, Any]] | None = None,
     summary: dict[str, Any] | None = None,
     ops: dict[str, Any] | None = None,
@@ -1260,6 +1317,8 @@ def render_dashboard(
     """Render the Control Tower dashboard as a self-contained HTML document."""
 
     history = history or []
+    impact_policy_audit = impact_policy_audit or []
+    reviewer_action_plan = reviewer_action_plan or []
     summary = summary or {}
     ops = ops or {}
     metrics = state.get("metrics", {})
@@ -1272,6 +1331,8 @@ def render_dashboard(
     auth_label = "사용" if ops.get("auth_required") else "미사용"
     blockers = state.get("blockers", [])
     candidate_units = metrics.get("impact_candidate_units_addressed", 0)
+    blocked_units = metrics.get("impact_public_claim_blocked_units", 0)
+    action_plan_units = metrics.get("reviewer_action_plan_candidate_units", 0)
     p0_pending = _priority_count(queue, "P0")
     release_label = _release_label(public_deploy)
 
@@ -1283,6 +1344,8 @@ def render_dashboard(
         _metric("검토 대기", pending, "승인/반려/근거 요청 필요", "risk" if pending else "good"),
         _metric("긴급 항목", p0_pending, "P0부터 먼저 확인", "risk" if p0_pending else "good"),
         _metric("따릉이 후보 조치", metrics.get("impact_card_rows", 0), f"예상 영향 {candidate_units} 단위"),
+        _metric("차단한 공개 claim", blocked_units, "대외 성과 주장 금지 단위", "risk" if blocked_units else "good"),
+        _metric("검토 계획", len(reviewer_action_plan), f"상위 계획 {action_plan_units} 단위"),
         _metric("공개 배포", release_label, "외부 공개 가능 여부", "good" if public_deploy == "GO" else "risk"),
     ]
 
@@ -1355,6 +1418,8 @@ def render_dashboard(
               <a class="button button--primary" href="#reviewer-queue">검토 대기열 보기</a>
               <a class="button" href="#impact-map">지도에서 보기</a>
               <a class="button" href="#impact-cards">따릉이 후보 조치 보기</a>
+              <a class="button" href="#policy-audit">정책 비교 보기</a>
+              <a class="button" href="#action-plan">검토 계획 보기</a>
               <a class="button" href="#blockers">보류 이유 보기</a>
             </nav>
           </div>
@@ -1428,6 +1493,40 @@ def render_dashboard(
         {_table(
             ["무엇을 판단하나", "긴급도", "현재 상태", "예상 효과", "검증 상태"],
             _render_impact_rows(impact_cards, 20),
+        )}
+      </section>
+
+      <section class="section" id="policy-audit">
+        <div class="section__header">
+          <div>
+            <h2>영향 정책 비교</h2>
+            <p class="section__intro">
+              무검토 공개 기준선과 guardrail 정책을 비교합니다.
+              목표는 후보 이동량을 숨기는 것이 아니라 미검증 성과 claim을 차단하는 것입니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(len(impact_policy_audit), f"{len(impact_policy_audit)}개 정책")}</div>
+        </div>
+        {_table(
+            ["정책", "검토 용량", "검토 후보 단위", "미검증 claim 단위", "결과"],
+            _render_policy_rows(impact_policy_audit, 12),
+        )}
+      </section>
+
+      <section class="section" id="action-plan">
+        <div class="section__header">
+          <div>
+            <h2>검토 실행 계획</h2>
+            <p class="section__intro">
+              검토자가 시간이 제한될 때 먼저 볼 후보를 정렬했습니다.
+              승인해도 현장 작업과 public claim은 실행되지 않고 local audit에만 남습니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(len(reviewer_action_plan), f"{len(reviewer_action_plan)}건")}</div>
+        </div>
+        {_table(
+            ["먼저 볼 후보", "긴급도", "누적 후보 단위", "권장 결정"],
+            _render_action_plan_rows(reviewer_action_plan, 12),
         )}
       </section>
 

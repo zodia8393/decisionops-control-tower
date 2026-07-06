@@ -7,7 +7,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from decisionops_control_tower.pipeline import _build_impact_cards, _build_review_queue, run
+from decisionops_control_tower.pipeline import (
+    _build_impact_cards,
+    _build_impact_policy_audit,
+    _build_review_queue,
+    _build_reviewer_action_plan,
+    run,
+)
 
 
 def test_control_tower_seed_writes_product_surface(tmp_path):
@@ -25,6 +31,9 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert summary["metrics"]["review_queue_items"] > 0
     assert summary["metrics"]["impact_card_rows"] > 0
     assert summary["metrics"]["impact_candidate_units_addressed"] > 0
+    assert summary["metrics"]["impact_policy_audit_rows"] >= 8
+    assert summary["metrics"]["impact_unsupported_claim_units_avoided"] > 0
+    assert summary["metrics"]["reviewer_action_plan_rows"] > 0
     assert summary["source_status"]["seoul_validation_status"] in {"READY", "NOT_READY"}
     assert summary["metrics"]["guarded_success_rate"] == 1.0
     assert summary["metrics"]["holdout_success_rate"] == 1.0
@@ -33,11 +42,17 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert Path(summary["reports"]["review_queue"]).exists()
     assert Path(summary["reports"]["impact_cards"]).exists()
     assert Path(summary["reports"]["impact_cards_json"]).exists()
+    assert Path(summary["reports"]["impact_policy_audit"]).exists()
+    assert Path(summary["reports"]["impact_policy_audit_json"]).exists()
+    assert Path(summary["reports"]["reviewer_action_plan"]).exists()
+    assert Path(summary["reports"]["reviewer_action_plan_json"]).exists()
     assert Path(summary["reports"]["dashboard"]).exists()
     dashboard_html = Path(summary["reports"]["dashboard"]).read_text(encoding="utf-8")
     assert "오늘의 결론" in dashboard_html
     assert "검토 대기열 보기" in dashboard_html
     assert "지도에서 보기" in dashboard_html
+    assert "정책 비교 보기" in dashboard_html
+    assert "검토 계획 보기" in dashboard_html
     assert "지도에서 위치 확인" in dashboard_html
     assert "서울 따릉이 후보 조치 위치 지도" in dashboard_html
     assert "서울 따릉이 후보 조치 실제 지도 타일" in dashboard_html
@@ -54,6 +69,10 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "좌표 상태" in dashboard_html
     assert "서울 따릉이 대여소 현황과 재배치 우선순위 산출물" in dashboard_html
     assert "검토 기준 보기" in dashboard_html
+    assert "영향 정책 비교" in dashboard_html
+    assert "검토 실행 계획" in dashboard_html
+    assert "미검증 claim 단위" in dashboard_html
+    assert "권장 결정" in dashboard_html
     assert "원천 근거 요약" in dashboard_html
     assert "다음 결정 기준" in dashboard_html
     assert "로컬 감사 기록" in dashboard_html
@@ -70,6 +89,50 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert impact_cards[0]["station_lat"]
     assert impact_cards[0]["station_lon"]
     assert impact_cards[0]["coordinate_status"] == "valid"
+    assert impact_cards[0]["public_claim_state"] == "blocked_until_public_deploy_ready"
+
+
+def test_policy_audit_and_action_plan_block_public_overclaim():
+    inputs = {
+        "bike": {
+            "public_deploy": {"decision": "NO_GO"},
+            "seoul_priority": [
+                {
+                    "station_id": "s1",
+                    "station_name": "검증된 대여소",
+                    "station_lat": "37.55",
+                    "station_lon": "126.98",
+                    "recommended_bikes_delta": "-10",
+                    "severity_score": "2.0",
+                    "recommended_action": "remove_bikes",
+                    "capacity": "20",
+                    "bikes_available": "19",
+                    "docks_available": "1",
+                }
+            ],
+            "seoul_validation_summary": {
+                "validation_status": "READY",
+                "snapshot_count": 30,
+                "min_snapshots_for_validation": 24,
+                "precision_at_50": 0.9,
+            },
+        }
+    }
+
+    cards = _build_impact_cards(inputs, limit=1)
+    audit = _build_impact_policy_audit(cards)
+    plan = _build_reviewer_action_plan(cards)
+    unsafe = next(row for row in audit if row["policy"] == "unsafe_auto_publish")
+    guarded = next(row for row in audit if row["policy"] == "guarded_all_review")
+
+    assert cards[0]["guardrail_state"] == "ready_for_review"
+    assert cards[0]["public_claim_state"] == "blocked_until_public_deploy_ready"
+    assert unsafe["audit_result"] == "fail"
+    assert unsafe["unsupported_claim_units"] == 10
+    assert guarded["audit_result"] == "pass"
+    assert guarded["blocked_public_claim_units"] == 10
+    assert guarded["unsupported_claim_units"] == 0
+    assert plan[0]["reviewer_decision"] == "approve_local_review_only"
 
 
 def test_public_deploy_stays_blocked_until_bike_readiness(tmp_path):
@@ -87,6 +150,7 @@ def test_public_deploy_stays_blocked_until_bike_readiness(tmp_path):
 def test_impact_cards_do_not_hide_missing_or_invalid_coordinates_as_zero():
     inputs = {
         "bike": {
+            "public_deploy": {"decision": "NO_GO"},
             "seoul_priority": [
                 {
                     "station_id": "bad-1",

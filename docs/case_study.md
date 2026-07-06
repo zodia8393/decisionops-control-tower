@@ -32,7 +32,9 @@
 |---|---|---|
 | 한국어 dashboard | 오늘의 결론, 차단 사유, 검토 대기열, 지도 | 제품 감각과 운영 이해 |
 | 지도 | 따릉이 후보 조치 위치와 fallback 번호 지도 | 좌표 기반 의사결정 |
-| Impact card | 권고 action, 후보 이동량, confidence, validation blocker | ML output의 business translation |
+| Impact card | 권고 action, 후보 이동량, confidence, public-claim blocker | ML output의 business translation |
+| Policy audit | unsafe publish와 guarded policy 비교 | 미검증 성과 claim 차단 |
+| Action plan | 검토자가 먼저 볼 후보와 local-only 판단 | 제한된 검토 용량 반영 |
 | Review queue | 사람이 무엇을 검토해야 하는지 설명 | human-in-the-loop workflow |
 | Approval API | reviewer/admin token 기반 approve/reject/needs_more_evidence | 안전한 write boundary |
 | Deployment readiness | local/container/hosted/public `GO`/`NO_GO` 분리 | 배포 판단과 책임 경계 |
@@ -46,12 +48,14 @@
 | Local private demo | `GO` |
 | Container demo | `GO` |
 | Hosted private demo | 인증 credential 설정 전 `NO_GO` |
-| Public deploy | upstream readiness와 Seoul validation 전까지 `NO_GO` |
-| Review queue | 42건 |
+| Public deploy | upstream readiness와 hosted hardening 전까지 `NO_GO` |
+| Review queue | 54건 |
 | Impact cards | 12건 |
+| Policy audit | 8개 policy/capacity row |
+| Reviewer action plan | 8건 |
 | CI | GitHub Actions 통과 |
 
-서울 따릉이 validation은 snapshot 수가 충분해지기 전까지 `NOT_READY`로 남긴다. 이 상태에서 impact card는 성과 claim이 아니라 local review evidence다.
+서울 따릉이 validation은 `READY`지만, public deploy readiness가 아직 `GO`가 아니므로 impact card는 성과 claim이 아니라 local review evidence다.
 
 ## 왜 식상하지 않은가
 
@@ -69,6 +73,6 @@
 | 마일스톤 | 완료 조건 |
 |---|---|
 | Private demo hardening | `CONTROL_TOWER_ROLE_TOKENS` 설정 후 `scripts/verify_private_demo.py` 통과 |
-| Seoul validation ready | 최소 snapshot 기준 충족 후 validation summary `READY` |
+| Public deploy readiness | bike-share prospective readiness와 hosted/private hardening 통과 |
 | Portfolio package | README, case study, demo package, DFD, runbook, screenshots가 한 흐름으로 연결 |
-| Public claim update | Seoul validation `READY` 후 verified improvement와 한계 갱신 |
+| Public claim update | public deploy `GO` 후 verified improvement와 한계 갱신 |

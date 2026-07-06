@@ -21,6 +21,8 @@ def test_fastapi_review_workflow_persists_approval(tmp_path):
     assert health.json()["status"] == "ok"
     assert health.json()["demo_mode_ready"] is True
     assert health.json()["auth_required"] is False
+    assert health.json()["impact_policy_audit_rows"] > 0
+    assert health.json()["reviewer_action_plan_rows"] > 0
 
     queue = client.get("/api/review-queue").json()
     assert queue["count"] > 0
@@ -66,10 +68,14 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "DecisionOps Control Tower" in dashboard.text
     assert "검토 대기열" in dashboard.text
     assert "따릉이 후보 조치" in dashboard.text
+    assert "영향 정책 비교" in dashboard.text
+    assert "검토 실행 계획" in dashboard.text
     assert "오늘의 결론" in dashboard.text
     assert "지금 해야 할 일" in dashboard.text
     assert "검토 대기열 보기" in dashboard.text
     assert "지도에서 보기" in dashboard.text
+    assert "정책 비교 보기" in dashboard.text
+    assert "검토 계획 보기" in dashboard.text
     assert "지도에서 위치 확인" in dashboard.text
     assert "서울 따릉이 후보 조치 위치 지도" in dashboard.text
     assert "서울 따릉이 후보 조치 실제 지도 타일" in dashboard.text
@@ -87,6 +93,8 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "좌표 상태" in dashboard.text
     assert "서울 따릉이 대여소 현황과 재배치 우선순위 산출물" in dashboard.text
     assert "검토 기준 보기" in dashboard.text
+    assert "미검증 claim 단위" in dashboard.text
+    assert "권장 결정" in dashboard.text
     assert "원천 근거 요약" in dashboard.text
     assert "bike-share benchmark 대여소" in dashboard.text
     assert "다음 결정 기준" in dashboard.text
@@ -109,11 +117,28 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert first_impact_item["station_lon"]
     assert first_impact_item["coordinate_status"] == "valid"
 
+    policy = client.get("/api/impact-policy-audit")
+    assert policy.status_code == 200
+    assert policy.json()["count"] >= 8
+    unsafe = [item for item in policy.json()["items"] if item["policy"] == "unsafe_auto_publish"]
+    assert unsafe and unsafe[0]["audit_result"] == "fail"
+
+    action_plan = client.get("/api/reviewer-action-plan")
+    assert action_plan.status_code == 200
+    assert action_plan.json()["count"] > 0
+    assert action_plan.json()["items"][0]["reviewer_decision"] in {
+        "approve_local_review_only",
+        "approve_for_private_demo",
+        "needs_more_evidence",
+    }
+
     openapi = client.get("/openapi.json")
     assert openapi.status_code == 200
     assert "/api/review-queue/{control_id}/decision" in openapi.json()["paths"]
     assert "/api/ops-metrics" in openapi.json()["paths"]
     assert "/api/impact-cards" in openapi.json()["paths"]
+    assert "/api/impact-policy-audit" in openapi.json()["paths"]
+    assert "/api/reviewer-action-plan" in openapi.json()["paths"]
 
 
 def test_fastapi_write_auth_when_token_configured(tmp_path):
@@ -214,4 +239,6 @@ def test_ops_metrics_report_artifact_health(tmp_path):
     assert payload["queue"]["total"] > 0
     assert payload["artifacts"]["control_state"]["exists"] is True
     assert payload["artifacts"]["impact_cards"]["exists"] is True
+    assert payload["artifacts"]["impact_policy_audit"]["exists"] is True
+    assert payload["artifacts"]["reviewer_action_plan"]["exists"] is True
     assert payload["artifacts"]["sqlite_database"]["exists"] is True

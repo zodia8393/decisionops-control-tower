@@ -175,12 +175,21 @@ def collect_readiness(
         "control_state": _artifact(reports / "control_state.json"),
         "review_queue": _artifact(reports / "control_review_queue.csv"),
         "api_contract": _artifact(reports / "api_contract.json"),
+        "impact_policy_audit": _artifact(reports / "impact_policy_audit.json"),
+        "reviewer_action_plan": _artifact(reports / "reviewer_action_plan.json"),
         "dashboard": _artifact(output_root / "dashboard" / "index.html"),
         "sqlite_database": _artifact(output_root / "control_tower.sqlite"),
         "ops_metrics_snapshot": _artifact(reports / "ops_metrics_snapshot.json"),
         "ops_metrics_history": _artifact(reports / "ops_metrics_history.jsonl"),
     }
-    required_artifact_names = ["control_state", "review_queue", "api_contract", "dashboard"]
+    required_artifact_names = [
+        "control_state",
+        "review_queue",
+        "api_contract",
+        "impact_policy_audit",
+        "reviewer_action_plan",
+        "dashboard",
+    ]
     artifact_blockers = [
         f"{name} artifact is missing"
         for name in required_artifact_names

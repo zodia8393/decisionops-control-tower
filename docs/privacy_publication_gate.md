@@ -28,4 +28,6 @@
 | request logging | pass | structured log는 request id, method, path, status, duration만 기록하고 token/header 값은 남기지 않음 |
 | monitoring snapshot | pass | ops metrics snapshot은 artifact freshness와 queue summary만 남기고 secret/header 값은 포함하지 않음 |
 | deployment readiness | pass | deployment gate는 credential 값 없이 auth 설정 여부, role 이름, Docker/buildx 상태, blocker만 기록함 |
+| impact policy audit | pass | unsafe baseline의 미검증 claim 단위를 계산하되 guarded policy는 이를 public claim으로 내보내지 않음 |
+| reviewer action plan | pass | local-only 승인/근거요청 계획이며 외부 dispatch, upstream mutation, public claim을 실행하지 않음 |
 | public deploy | blocked | bike-share readiness가 READY가 아니면 `NO_GO` 유지 |

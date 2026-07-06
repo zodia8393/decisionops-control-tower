@@ -44,6 +44,10 @@ def _smoke_basic(args: argparse.Namespace) -> None:
     queue.raise_for_status()
     impact = client.get("/api/impact-cards")
     impact.raise_for_status()
+    policy = client.get("/api/impact-policy-audit")
+    policy.raise_for_status()
+    action_plan = client.get("/api/reviewer-action-plan")
+    action_plan.raise_for_status()
     ops = client.get("/api/ops-metrics")
     ops.raise_for_status()
     dashboard = client.get("/dashboard")
@@ -56,13 +60,15 @@ def _smoke_basic(args: argparse.Namespace) -> None:
         f"status={payload['status']}, "
         f"queue_total={payload['queue']['total']}, "
         f"impact_cards={impact.json()['count']}, "
+        f"policy_rows={policy.json()['count']}, "
+        f"action_plan_rows={action_plan.json()['count']}, "
         f"auth_required={payload['auth_required']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"
     )
 
 
 def _smoke_auth(args: argparse.Namespace) -> None:
-    token = "local-smoke-reviewer-token"
+    token = "smoke-pass"
     client = TestClient(
         create_app(
             output_root=Path(args.output_root),

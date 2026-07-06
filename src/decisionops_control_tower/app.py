@@ -114,6 +114,8 @@ def _needs_pipeline_refresh(output_root: Path) -> bool:
         output_root / "reports" / "control_state.json",
         output_root / "reports" / "control_review_queue.csv",
         output_root / "reports" / "impact_cards.json",
+        output_root / "reports" / "impact_policy_audit.json",
+        output_root / "reports" / "reviewer_action_plan.json",
         output_root / "reports" / "api_contract.json",
         output_root / "dashboard" / "index.html",
     ]
@@ -233,6 +235,12 @@ def create_app(
             ),
             "api_contract": _artifact_status(app.state.output_root / "reports" / "api_contract.json"),
             "impact_cards": _artifact_status(app.state.output_root / "reports" / "impact_cards.json"),
+            "impact_policy_audit": _artifact_status(
+                app.state.output_root / "reports" / "impact_policy_audit.json"
+            ),
+            "reviewer_action_plan": _artifact_status(
+                app.state.output_root / "reports" / "reviewer_action_plan.json"
+            ),
             "dashboard": _artifact_status(app.state.output_root / "dashboard" / "index.html"),
             "sqlite_database": _artifact_status(database_path(app.state.output_root)),
         }
@@ -256,6 +264,8 @@ def create_app(
             "health": "/health",
             "dashboard": "/dashboard",
             "impact_cards": "/api/impact-cards",
+            "impact_policy_audit": "/api/impact-policy-audit",
+            "reviewer_action_plan": "/api/reviewer-action-plan",
             "ops": "/api/ops-metrics",
             "openapi": "/docs",
         }
@@ -270,6 +280,8 @@ def create_app(
             "demo_mode_ready": bool(state.get("demo_mode_ready")),
             "public_deploy_decision": state.get("public_deploy_decision", "UNKNOWN"),
             "impact_card_rows": state.get("metrics", {}).get("impact_card_rows", 0),
+            "impact_policy_audit_rows": state.get("metrics", {}).get("impact_policy_audit_rows", 0),
+            "reviewer_action_plan_rows": state.get("metrics", {}).get("reviewer_action_plan_rows", 0),
             "queue": queue_summary(app.state.output_root),
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
@@ -298,6 +310,26 @@ def create_app(
             items = []
         if guardrail_state:
             items = [item for item in items if item.get("guardrail_state") == guardrail_state]
+        return {"count": len(items), "items": items}
+
+    @app.get("/api/impact-policy-audit")
+    def impact_policy_audit(policy: str | None = None) -> dict[str, Any]:
+        ensure_ready()
+        items = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
+        if not isinstance(items, list):
+            items = []
+        if policy:
+            items = [item for item in items if item.get("policy") == policy]
+        return {"count": len(items), "items": items}
+
+    @app.get("/api/reviewer-action-plan")
+    def reviewer_action_plan(decision: str | None = None) -> dict[str, Any]:
+        ensure_ready()
+        items = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
+        if not isinstance(items, list):
+            items = []
+        if decision:
+            items = [item for item in items if item.get("reviewer_decision") == decision]
         return {"count": len(items), "items": items}
 
     @app.post("/api/review-queue/{control_id}/decision")
@@ -343,6 +375,12 @@ def create_app(
         cards = _read_json(app.state.output_root / "reports" / "impact_cards.json", [])
         if not isinstance(cards, list):
             cards = []
+        policy_audit = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
+        if not isinstance(policy_audit, list):
+            policy_audit = []
+        action_plan = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
+        if not isinstance(action_plan, list):
+            action_plan = []
         return HTMLResponse(
             render_dashboard(
                 state=state,
@@ -351,6 +389,8 @@ def create_app(
                 summary=summary,
                 ops=ops_metrics(),
                 impact_cards=cards,
+                impact_policy_audit=policy_audit,
+                reviewer_action_plan=action_plan,
             )
         )
 

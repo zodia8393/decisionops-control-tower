@@ -2,35 +2,51 @@
 
 [![ci](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml)
 
-서울 공공자전거 운영 문제를 **예측 점수**에서 끝내지 않고, 지도 기반 후보 조치, 사람 검토 대기열, 승인 기록, 배포 가능 여부 판단까지 연결한 AI/ML product slice입니다.
+## 결론
 
-기존 미국 bike-share benchmark에서 시작해 서울 따릉이 공개데이터 adapter로 확장했고, 실제 운영 문제인 **대여 불가, 반납 포화, 재배치 우선순위**를 reviewer-facing 의사결정 제품으로 구현했습니다.
+서울 공공자전거 운영 문제를 예측 점수에서 끝내지 않고, 지도 기반 후보 조치, 사람 검토 대기열, 승인 기록, 배포 가능 여부 판단까지 연결한 AI/ML product slice입니다.
+
+현재 결론은 명확합니다. Local/private demo는 `GO`지만 public deploy와 성과 claim은 upstream readiness가 끝날 때까지 `NO_GO`입니다.
+
+## 무엇을 만들었나
+
+| Surface | 구현 증거 | 의사결정 |
+|---|---|
+| Reviewer dashboard | 지도, impact cards, policy audit, action plan | 먼저 검토할 후보 선택 |
+| Approval API | role token 기반 approve/reject/needs-more-evidence | local audit 기록 |
+| SQLite audit trail | `control_tower.sqlite` | 결정 이력 보존 |
+| Deployment gate | local/container/hosted/public 분리 | 공개 여부 `GO/NO_GO` |
+
+## 핵심 수치
+
+| 항목 | 값 | 의미 |
+|---|---:|---|
+| Impact cards | 12 | 서울 따릉이 후보 조치 수 |
+| Candidate units | 837 | 검토 대상 후보 이동량 |
+| Unsupported claim avoided | 837 | 공개 claim으로 쓰지 않고 차단한 단위 |
+| Reviewer action plan | 8 | 검토자가 먼저 볼 local-only 계획 |
+| Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
+| Public deploy | `NO_GO` | 외부 공개 차단 상태 |
+
+## 얻은 인사이트
+
+운영 제품에서 중요한 것은 높은 점수보다 “지금 공개해도 되는가”입니다. 이 프로젝트는 후보 효과 단위를 계산하면서도, 검증 전 수치를 대외 성과로 말하지 못하게 막습니다.
+
+무검토 공개 기준선은 837단위의 unsupported claim을 만들 수 있습니다. Guarded policy는 같은 후보를 local reviewer evidence로만 보존합니다.
+
+## 방법 선택 이유
+
+| 선택 | 이유 | 대안 |
+|---|---|
+| FastAPI | reviewer workflow를 바로 실행 | notebook-only 분석 |
+| SQLite | local audit trail을 간단히 보존 | 외부 DB 선행 |
+| Policy audit | 성과 claim 위험을 수치화 | 설명문만 작성 |
+| Action plan | 제한된 검토 시간을 반영 | 전체 queue 나열 |
+| `NO_GO` gate | 공개 배포와 demo를 분리 | 단일 ready flag |
+
+## 대표 시각화
 
 ![DecisionOps Control Tower dashboard](docs/assets/demo/dashboard_overview.png)
-
-## What This Shows
-
-| 평가자가 봐야 할 것 | 구현 증거 |
-|---|---|
-| Product DS 문제 정의 | 공공자전거 재배치 조치를 `GO/NO_GO`, blocker, review queue로 표현 |
-| Applied AI workflow | agentic review/eval 결과를 human approval workflow로 연결 |
-| ML output translation | 서울 따릉이 우선순위를 impact card, 후보 이동량, confidence, validation blocker로 변환 |
-| Backend/product delivery | FastAPI, OpenAPI, SQLite audit trail, Docker/Compose smoke |
-| Responsible deployment | private demo와 public deploy를 분리하고, validation 전 public claim 차단 |
-| Portfolio presentation | 실제 dashboard/map/review queue screenshot과 3분 시연 흐름 제공 |
-
-## Product Surfaces
-
-| Surface | 설명 |
-|---|---|
-| Korean reviewer dashboard | 오늘의 결론, blocker, 지도, impact cards, review queue, approval history |
-| Seoul Ddareungi impact cards | 대여소별 권고 action, 예상 완화량, 좌표 상태, 검증 상태 |
-| Approval API | `reviewer`/`admin` role token 기반 approve/reject/needs-more-evidence 기록 |
-| SQLite audit trail | reviewer decision을 local `control_tower.sqlite`에 보존 |
-| Ops metrics | queue, artifact freshness, auth 상태, public deploy decision |
-| Deployment gate | local/container/hosted/public `GO`/`NO_GO`를 분리 산출 |
-
-## Demo
 
 | 장면 | 캡처 |
 |---|---|
@@ -40,45 +56,22 @@
 
 시연 흐름은 [docs/demo_package.md](docs/demo_package.md)에 정리했습니다.
 
-## Current State
+## 현재 상태
 
-| 항목 | 상태 |
-|---|---|
-| CI | GitHub Actions pass |
-| Local private demo | `GO` |
-| Container demo | `GO` |
-| Hosted private demo | credential 설정 전 `NO_GO` |
-| Public deploy | upstream readiness와 Seoul validation 전까지 `NO_GO` |
-| Review queue | 42건 |
-| Impact cards | 12건 |
-| Seoul validation | 최소 snapshot 기준 충족 전까지 `NOT_READY` |
+| 항목 | 상태 | 의미 |
+|---|---|---|
+| Local private demo | `GO` | reviewer walkthrough 가능 |
+| Container demo | `GO` | Docker smoke 가능 |
+| Hosted private demo | `NO_GO` | write auth 미설정 |
+| Public deploy | `NO_GO` | upstream readiness 대기 |
+| Seoul validation | `READY` | 후보 검토 가능 |
+| Public claim | `blocked` | 외부 성과 주장 금지 |
 
-`NO_GO`는 실패가 아니라 의도한 guardrail입니다. 서울 따릉이 validation이 충분해지기 전에는 성과 claim을 하지 않고 local review evidence로만 보여줍니다.
+`NO_GO`는 실패가 아니라 의도한 guardrail입니다.
 
-## Architecture
-
-```text
-Citi Bike benchmark artifacts
-Seoul Ddareungi public-data adapter
-Agentic DecisionOps Workbench eval/review artifacts
-        |
-        v
-DecisionOps Control Tower
-  - control_state.json
-  - impact_cards.json/csv
-  - review_queue.csv
-  - FastAPI + OpenAPI
-  - SQLite approval store
-  - Korean dashboard
-  - deployment readiness gate
-```
-
-자세한 설계는 [docs/system_design.md](docs/system_design.md), 한국어 DFD는 [docs/data_flow_diagram.md](docs/data_flow_diagram.md)를 봅니다.
-
-## Quick Start
+## 실행 방법
 
 ```bash
-cd /workspace/prj/data-scientist-career/decisionops-control-tower
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
@@ -99,8 +92,23 @@ scripts/run_server.sh
 | Dashboard | `http://127.0.0.1:8093/dashboard` |
 | Health | `http://127.0.0.1:8093/health` |
 | Impact cards | `http://127.0.0.1:8093/api/impact-cards` |
+| Policy audit | `http://127.0.0.1:8093/api/impact-policy-audit` |
+| Action plan | `http://127.0.0.1:8093/api/reviewer-action-plan` |
 | Ops metrics | `http://127.0.0.1:8093/api/ops-metrics` |
 | OpenAPI | `http://127.0.0.1:8093/docs` |
+
+## 산출물 확인 방법
+
+| 산출물 | 경로 | 의미 |
+|---|---|---|
+| Control state | `reports/control_state.json` | 배포 판단과 blocker |
+| Impact cards | `reports/impact_cards.json` | 따릉이 후보 조치 |
+| Policy audit | `reports/impact_policy_audit.json` | 공개 claim 차단 검증 |
+| Action plan | `reports/reviewer_action_plan.json` | 검토 우선순위 |
+| Dashboard | `dashboard/index.html` | reviewer 화면 |
+| Quality gate | `reports/quality_gate_scores.csv` | portfolio quality score |
+
+기본 산출물 root는 `OUTPUT_ROOT`로 바꿀 수 있습니다.
 
 ## Private Demo Auth
 
@@ -114,7 +122,7 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 
 Runbook: [docs/private_demo_runbook.md](docs/private_demo_runbook.md)
 
-## Verification
+## 검증
 
 ```bash
 python3 -m compileall -q src tests scripts
@@ -132,13 +140,13 @@ scripts/verify_docker_deployment.sh
 scripts/verify_compose_deployment.sh
 ```
 
-포트폴리오 캡처 재생성:
+포트폴리오 캡처:
 
 ```bash
 scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 ```
 
-## Repository Guide
+## 구조
 
 | 경로 | 내용 |
 |---|---|
@@ -149,7 +157,7 @@ scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 | [docs/demo_package.md](docs/demo_package.md) | screenshot 기반 3분 시연 패키지 |
 | [docs/reproducibility.md](docs/reproducibility.md) | 재현 명령과 성공 기준 |
 
-## Boundaries
+## 한계
 
 - Approval POST는 local SQLite audit trail에만 기록합니다.
 - 실제 자전거 재배치, 외부 dispatch, upstream artifact mutation은 하지 않습니다.

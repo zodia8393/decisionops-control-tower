@@ -8,9 +8,11 @@
 
 1. **Dashboard overview**: 현재 결론, public deploy `NO_GO`, review queue, impact card 수를 보여준다.
 2. **서울 따릉이 지도**: 후보 조치 위치와 fallback 번호 지도를 보여준다.
-3. **검토 대기열**: 사람이 무엇을 검토해야 하는지, 내부 ID 대신 사람이 읽는 문맥으로 설명한다.
-4. **OpenAPI**: approval write endpoint와 health/ops/impact endpoint를 보여준다.
-5. **Private demo verifier**: token 값 없이 인증 경계가 검증되는 것을 보여준다.
+3. **영향 정책 비교**: unsafe publish 기준선과 guarded policy의 미검증 claim 차단 차이를 보여준다.
+4. **검토 실행 계획**: 검토 시간이 제한될 때 먼저 볼 local-only 후보를 보여준다.
+5. **검토 대기열**: 사람이 무엇을 검토해야 하는지, 내부 ID 대신 사람이 읽는 문맥으로 설명한다.
+6. **OpenAPI**: approval write endpoint와 health/ops/impact endpoint를 보여준다.
+7. **Private demo verifier**: token 값 없이 인증 경계가 검증되는 것을 보여준다.
 
 ## 캡처
 
@@ -19,6 +21,7 @@
 | Dashboard overview | ![Dashboard overview](assets/demo/dashboard_overview.png) | 첫 화면에서 product state와 CTA를 확인 |
 | Full dashboard | ![Dashboard full page](assets/demo/dashboard_full_page.png) | 전체 reviewer workflow 흐름 |
 | 서울 따릉이 지도 | ![Impact map](assets/demo/impact_map_section.png) | 좌표 기반 후보 조치와 지도 fallback |
+| 정책 비교 | ![Policy audit section](assets/demo/policy_audit_section.png) | 미검증 claim 차단과 capacity 비교 |
 | 검토 대기열 | ![Reviewer queue](assets/demo/reviewer_queue.png) | 사람이 읽는 검토 문맥과 approval controls |
 | OpenAPI | ![OpenAPI docs](assets/demo/openapi_docs.png) | API product surface |
 
@@ -44,7 +47,8 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 ## 말해야 할 메시지
 
 - “따릉이 실시간성 inventory를 단순히 보여주는 것이 아니라, 어떤 조치를 검토해야 하는지 impact card로 만든다.”
-- “Seoul validation이 충분해지기 전에는 성과를 과장하지 않고 `NOT_READY`로 묶는다.”
+- “Seoul validation이 `READY`여도 public deploy readiness 전에는 성과 claim을 blocked 상태로 둔다.”
+- “unsafe publish 기준선은 미검증 claim을 만들 수 있지만 guarded policy는 같은 후보를 local evidence로만 보존한다.”
 - “reviewer/admin token 없이는 approval write가 되지 않는다.”
 - “public deploy와 private demo를 분리해, 포트폴리오에서도 책임 있는 배포 판단을 유지한다.”
 
@@ -52,4 +56,4 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 
 - 캡처는 local/private demo 기준이다.
 - OpenStreetMap 외부 tile이 차단될 수 있어 SVG fallback 번호 지도를 함께 제공한다.
-- 서울 따릉이 validation이 `READY`가 되기 전까지 verified impact claim은 하지 않는다.
+- Public deploy readiness가 `GO`가 되기 전까지 verified external impact claim은 하지 않는다.

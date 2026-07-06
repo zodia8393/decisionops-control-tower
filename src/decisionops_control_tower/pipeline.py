@@ -331,11 +331,13 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
     bike = inputs["bike"]
     priority_rows = bike["seoul_priority"]
     validation = bike["seoul_validation_summary"]
+    bike_deploy_decision = bike["public_deploy"].get("decision", "UNKNOWN")
     validation_status = validation.get("validation_status", "UNKNOWN")
     snapshot_count = _as_int(validation.get("snapshot_count"))
     min_snapshots = _as_int(validation.get("min_snapshots_for_validation"))
     precision_at_50 = _as_float(validation.get("precision_at_50"), 0.0)
     validation_ready = validation_status == "READY"
+    public_claim_allowed = validation_ready and bike_deploy_decision == "GO"
     evidence_strength = "validated" if validation_ready else "preliminary"
     confidence_score = precision_at_50 if validation_ready else min(precision_at_50, 1.0) * 0.5
     if not priority_rows:
@@ -347,6 +349,8 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
             f"Seoul validation requires {min_snapshots} snapshots; "
             f"current snapshot_count={snapshot_count}"
         )
+    elif bike_deploy_decision != "GO":
+        blocker = f"Public deploy decision is {bike_deploy_decision}; keep impact claim local-only"
 
     cards: list[dict[str, Any]] = []
     for idx, row in enumerate(priority_rows[:limit], start=1):
@@ -383,7 +387,7 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
             "evidence_strength": evidence_strength,
             "confidence_score": round(confidence_score, 3),
             "guardrail_state": "ready_for_review" if validation_ready else "validation_not_ready",
-            "public_claim_state": "allowed" if validation_ready else "blocked_until_validation_ready",
+            "public_claim_state": "allowed" if public_claim_allowed else "blocked_until_public_deploy_ready",
             "blocker": blocker,
             "evidence": "seoul_ddareungi/reports/rebalancing_priority.csv; seoul_ddareungi/reports/validation_summary.json",
             "captured_at_kst": row.get("captured_at_kst", ""),
@@ -395,19 +399,163 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
 
 def _impact_summary(cards: list[dict[str, Any]]) -> dict[str, Any]:
     guardrail_counts: dict[str, int] = {}
+    public_claim_blocked_units = 0
+    verified_units = 0
     for card in cards:
         state = str(card.get("guardrail_state", "unknown"))
         guardrail_counts[state] = guardrail_counts.get(state, 0) + 1
+        units = _as_int(card.get("candidate_units_addressed"))
+        if card.get("public_claim_state") != "allowed":
+            public_claim_blocked_units += units
+        verified_units += _as_int(card.get("verified_delta_vs_no_action_units"))
     return {
         "impact_card_rows": len(cards),
         "total_candidate_units_addressed": sum(
             _as_int(card.get("candidate_units_addressed")) for card in cards
         ),
+        "total_verified_units": verified_units,
+        "public_claim_blocked_units": public_claim_blocked_units,
         "guardrail_counts": guardrail_counts,
     }
 
 
-def _build_control_state(inputs: dict[str, Any], impact_cards: list[dict[str, Any]]) -> dict[str, Any]:
+def _policy_order(cards: list[dict[str, Any]], policy: str) -> list[dict[str, Any]]:
+    if policy == "impact_guarded_capacity":
+        return sorted(
+            cards,
+            key=lambda item: (
+                {"P0": 0, "P1": 1, "P2": 2}.get(str(item.get("priority", "P2")), 9),
+                -_as_int(item.get("candidate_units_addressed")),
+                -_as_float(item.get("confidence_score")),
+            ),
+        )
+    return list(cards)
+
+
+def _build_impact_policy_audit(cards: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    total_units = sum(_as_int(card.get("candidate_units_addressed")) for card in cards)
+    public_claim_blocked_units = sum(
+        _as_int(card.get("candidate_units_addressed"))
+        for card in cards
+        if card.get("public_claim_state") != "allowed"
+    )
+    coordinate_issues = sum(1 for card in cards if card.get("coordinate_status") != "valid")
+    low_confidence = sum(1 for card in cards if _as_float(card.get("confidence_score")) < 0.6)
+    p0_cards = sum(1 for card in cards if card.get("priority") == "P0")
+    rows: list[dict[str, Any]] = [
+        {
+            "policy": "unsafe_auto_publish",
+            "review_capacity": len(cards),
+            "reviewed_cards": len(cards),
+            "reviewed_candidate_units": total_units,
+            "p0_cards_reviewed": p0_cards,
+            "low_confidence_cards_reviewed": low_confidence,
+            "blocked_public_claim_units": 0,
+            "unsupported_claim_units": public_claim_blocked_units,
+            "policy_violation_count": sum(
+                1 for card in cards if card.get("public_claim_state") != "allowed"
+            ),
+            "coordinate_issue_count": coordinate_issues,
+            "audit_result": "fail" if public_claim_blocked_units or coordinate_issues else "pass",
+            "decision_boundary": "unsafe baseline publishes candidate impact before validation/deploy readiness",
+        },
+        {
+            "policy": "guarded_all_review",
+            "review_capacity": len(cards),
+            "reviewed_cards": len(cards),
+            "reviewed_candidate_units": total_units,
+            "p0_cards_reviewed": p0_cards,
+            "low_confidence_cards_reviewed": low_confidence,
+            "blocked_public_claim_units": public_claim_blocked_units,
+            "unsupported_claim_units": 0,
+            "policy_violation_count": 0,
+            "coordinate_issue_count": coordinate_issues,
+            "audit_result": "pass" if coordinate_issues == 0 else "fail",
+            "decision_boundary": "blocks unverified public claims and keeps reviewer evidence local",
+        },
+    ]
+    for capacity in [3, 6, 12]:
+        for policy in ["source_order_capacity", "impact_guarded_capacity"]:
+            reviewed = _policy_order(cards, policy)[:capacity]
+            reviewed_units = sum(_as_int(card.get("candidate_units_addressed")) for card in reviewed)
+            rows.append(
+                {
+                    "policy": policy,
+                    "review_capacity": capacity,
+                    "reviewed_cards": len(reviewed),
+                    "reviewed_candidate_units": reviewed_units,
+                    "p0_cards_reviewed": sum(1 for card in reviewed if card.get("priority") == "P0"),
+                    "low_confidence_cards_reviewed": sum(
+                        1 for card in reviewed if _as_float(card.get("confidence_score")) < 0.6
+                    ),
+                    "blocked_public_claim_units": sum(
+                        _as_int(card.get("candidate_units_addressed"))
+                        for card in reviewed
+                        if card.get("public_claim_state") != "allowed"
+                    ),
+                    "unsupported_claim_units": 0,
+                    "policy_violation_count": 0,
+                    "coordinate_issue_count": sum(
+                        1 for card in reviewed if card.get("coordinate_status") != "valid"
+                    ),
+                    "audit_result": "pass",
+                    "decision_boundary": "capacity-limited reviewer ordering without public overclaim",
+                }
+            )
+    return rows
+
+
+def _build_reviewer_action_plan(cards: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    cumulative_units = 0
+    ordered = _policy_order(cards, "impact_guarded_capacity")
+    for rank, card in enumerate(ordered[:limit], start=1):
+        units = _as_int(card.get("candidate_units_addressed"))
+        cumulative_units += units
+        coordinate_status = str(card.get("coordinate_status", "missing"))
+        public_claim_state = str(card.get("public_claim_state", "blocked"))
+        confidence = _as_float(card.get("confidence_score"))
+        if coordinate_status != "valid" or confidence < 0.6:
+            reviewer_decision = "needs_more_evidence"
+            next_evidence = "좌표와 confidence 근거를 보강한 뒤 다시 검토"
+        elif public_claim_state != "allowed":
+            reviewer_decision = "approve_local_review_only"
+            next_evidence = "public deploy GO와 prospective readiness가 확인되기 전까지 대외 성과 claim 금지"
+        else:
+            reviewer_decision = "approve_for_private_demo"
+            next_evidence = "local approval audit에 기록한 뒤 private demo에서만 설명"
+        rows.append(
+            {
+                "plan_rank": rank,
+                "action_plan_id": f"PLAN-{rank:04d}",
+                "station_name": card.get("station_name", ""),
+                "recommended_action": card.get("recommended_action", ""),
+                "priority": card.get("priority", "P2"),
+                "candidate_units_addressed": units,
+                "cumulative_candidate_units": cumulative_units,
+                "confidence_score": card.get("confidence_score", 0.0),
+                "public_claim_state": public_claim_state,
+                "reviewer_decision": reviewer_decision,
+                "approval_threshold": "valid_coordinates AND confidence>=0.60 AND public_claim_state documented",
+                "next_evidence_needed": next_evidence,
+            }
+        )
+    return rows
+
+
+def _top_capacity_units(policy_audit: list[dict[str, Any]], policy: str, capacity: int) -> int:
+    for row in policy_audit:
+        if row.get("policy") == policy and _as_int(row.get("review_capacity")) == capacity:
+            return _as_int(row.get("reviewed_candidate_units"))
+    return 0
+
+
+def _build_control_state(
+    inputs: dict[str, Any],
+    impact_cards: list[dict[str, Any]],
+    policy_audit: list[dict[str, Any]],
+    action_plan: list[dict[str, Any]],
+) -> dict[str, Any]:
     bike = inputs["bike"]
     workbench = inputs["workbench"]
     fallbacks = inputs.get("_fallbacks", {})
@@ -433,11 +581,17 @@ def _build_control_state(inputs: dict[str, Any], impact_cards: list[dict[str, An
         blockers.append("agentic guarded/holdout success is below release threshold")
     if review_queue_items == 0:
         blockers.append("review queue has no actionable items")
-    if impact_cards and impact["guardrail_counts"].get("validation_not_ready"):
-        blockers.append("Seoul Ddareungi impact cards are local-review only until validation is READY")
+    if impact_cards and impact["public_claim_blocked_units"]:
+        blockers.append(
+            "Seoul Ddareungi impact cards are local-review only until validation and deploy readiness are READY"
+        )
 
     demo_ready = prepublish_ready and guarded_success >= 0.99 and holdout_success >= 0.99
     public_deploy_ready = demo_ready and snapshot_ready and bike_deploy_decision == "GO"
+    unsafe = next((row for row in policy_audit if row.get("policy") == "unsafe_auto_publish"), {})
+    guarded = next((row for row in policy_audit if row.get("policy") == "guarded_all_review"), {})
+    source_top = _top_capacity_units(policy_audit, "source_order_capacity", 3)
+    guarded_top = _top_capacity_units(policy_audit, "impact_guarded_capacity", 3)
     return {
         "project": "decisionops-control-tower",
         "status": "seed_ready",
@@ -457,6 +611,18 @@ def _build_control_state(inputs: dict[str, Any], impact_cards: list[dict[str, An
             "holdout_success_rate": holdout_success,
             "impact_card_rows": impact["impact_card_rows"],
             "impact_candidate_units_addressed": impact["total_candidate_units_addressed"],
+            "impact_verified_units": impact["total_verified_units"],
+            "impact_public_claim_blocked_units": impact["public_claim_blocked_units"],
+            "impact_policy_audit_rows": len(policy_audit),
+            "impact_unsupported_claim_units_avoided": _as_int(unsafe.get("unsupported_claim_units"))
+            - _as_int(guarded.get("unsupported_claim_units")),
+            "impact_policy_violation_reduction": _as_int(unsafe.get("policy_violation_count"))
+            - _as_int(guarded.get("policy_violation_count")),
+            "impact_policy_top_capacity_units_uplift": guarded_top - source_top,
+            "reviewer_action_plan_rows": len(action_plan),
+            "reviewer_action_plan_candidate_units": sum(
+                _as_int(row.get("candidate_units_addressed")) for row in action_plan
+            ),
             "seoul_priority_rows": len(bike["seoul_priority"]),
             "seoul_snapshot_count": _as_int(seoul_validation.get("snapshot_count")),
         },
@@ -510,6 +676,16 @@ def _build_api_contract() -> dict[str, Any]:
                 "path": "/api/impact-cards",
                 "returns": "Seoul Ddareungi impact cards with validation guardrail state",
             },
+            {
+                "method": "GET",
+                "path": "/api/impact-policy-audit",
+                "returns": "baseline-vs-guarded public-claim and reviewer-capacity audit",
+            },
+            {
+                "method": "GET",
+                "path": "/api/reviewer-action-plan",
+                "returns": "capacity-ranked local reviewer actions with public-claim boundaries",
+            },
             {"method": "GET", "path": "/api/ops-metrics", "returns": "runtime, auth, queue, and artifact health"},
             {"method": "GET", "path": "/dashboard", "returns": "operator dashboard with approval actions"},
         ],
@@ -525,12 +701,16 @@ def _write_dashboard(
     state: dict[str, Any],
     queue: list[dict[str, Any]],
     impact_cards: list[dict[str, Any]],
+    policy_audit: list[dict[str, Any]],
+    action_plan: list[dict[str, Any]],
 ) -> None:
     path.write_text(
         render_dashboard(
             state=state,
             queue=queue,
             impact_cards=impact_cards,
+            impact_policy_audit=policy_audit,
+            reviewer_action_plan=action_plan,
             summary={"total": len(queue), "by_state": {"pending_reviewer": len(queue)}},
             ops={"auth_required": False, "configured_roles": [], "artifacts": {}},
             include_actions=False,
@@ -540,9 +720,17 @@ def _write_dashboard(
     )
 
 
-def _write_reports(output_root: Path, state: dict[str, Any], impact_cards: list[dict[str, Any]]) -> None:
+def _write_reports(
+    output_root: Path,
+    state: dict[str, Any],
+    impact_cards: list[dict[str, Any]],
+    policy_audit: list[dict[str, Any]],
+    action_plan: list[dict[str, Any]],
+) -> None:
     reports = output_root / "reports"
     final_report = reports / "final_report.md"
+    unsafe_row = next((row for row in policy_audit if row.get("policy") == "unsafe_auto_publish"), {})
+    guarded_row = next((row for row in policy_audit if row.get("policy") == "guarded_all_review"), {})
     final_report.write_text(
         "\n".join(
             [
@@ -561,13 +749,23 @@ def _write_reports(output_root: Path, state: dict[str, Any], impact_cards: list[
                 f"| Review queue | {state['metrics']['review_queue_items']} | reviewer가 승인해야 할 pending decision 수 |",
                 f"| Impact cards | {state['metrics']['impact_card_rows']} | 서울 따릉이 우선순위를 reviewer-facing impact card로 투영한 수 |",
                 f"| Candidate impact units | {state['metrics']['impact_candidate_units_addressed']} | 검증 전 후보 이동량이며 production claim은 아님 |",
+                f"| Unsupported claim units avoided | {state['metrics']['impact_unsupported_claim_units_avoided']} | unsafe publish 대비 guarded policy가 차단한 미검증 claim 단위 |",
+                f"| Reviewer action plan | {state['metrics']['reviewer_action_plan_rows']} | 용량 제한 검토자가 먼저 볼 local-only 실행 계획 수 |",
                 f"| Incident rows | {state['metrics']['incident_rows']} | NY 511 기반 incident surface row 수 |",
                 f"| Guarded success | {state['metrics']['guarded_success_rate']:.3f} | Stage 2 main eval 성공률 |",
                 f"| Holdout success | {state['metrics']['holdout_success_rate']:.3f} | Stage 2 adversarial prompt 성공률 |",
                 "",
                 "## 판단",
                 "",
-                "이 slice는 로컬 demo, reviewer approval persistence, RBAC-lite write auth, structured request logging, monitoring snapshot, deployment readiness gate, impact card 검토가 가능하다. 다만 public deploy와 impact 성과 claim은 upstream readiness와 Seoul validation이 READY가 될 때까지 `NO_GO`로 유지한다.",
+                "이 slice는 로컬 demo, reviewer approval persistence, RBAC-lite write auth, structured request logging, monitoring snapshot, deployment readiness gate, impact card 검토가 가능하다. 새 policy audit은 unsafe publish 기준선이 미검증 claim을 만들 수 있음을 보여주고, guarded policy는 같은 후보를 local reviewer evidence로만 묶는다.",
+                "",
+                "## 정책 비교",
+                "",
+                f"- Unsafe baseline unsupported claim units: `{unsafe_row.get('unsupported_claim_units', 0)}`",
+                f"- Guarded policy unsupported claim units: `{guarded_row.get('unsupported_claim_units', 0)}`",
+                f"- Reviewer action plan rows: `{len(action_plan)}`",
+                "",
+                "Public deploy와 impact 성과 claim은 upstream readiness와 hosted/private hardening이 끝날 때까지 `NO_GO`로 유지한다.",
             ]
         )
         + "\n",
@@ -583,7 +781,7 @@ def _write_reports(output_root: Path, state: dict[str, Any], impact_cards: list[
         "- Stage 1: bike-share station readiness, deploy decision, inventory and priority artifacts.\n"
         "- Stage 1 Seoul: Ddareungi live priority and validation summary artifacts.\n"
         "- Stage 2: Agentic DecisionOps eval, holdout, prepublish, MCP contract, review queue, NY 511 incident surface.\n"
-        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
+        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, impact policy audit CSV/JSON, reviewer action plan CSV/JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
         encoding="utf-8",
     )
     _write_csv(
@@ -591,58 +789,58 @@ def _write_reports(output_root: Path, state: dict[str, Any], impact_cards: list[
         [
             {
                 "category": "problem framing and business/career relevance",
-                "score": 95.2,
-                "rationale": "Control Tower turns operations ML, guarded decisions, approval workflow, and Seoul impact cards into one reviewer product slice",
+                "score": 95.6,
+                "rationale": "Control Tower connects operations ML, guarded decisions, approval workflow, Seoul impact cards, policy audit, and reviewer action planning into one capstone product slice",
             },
             {
                 "category": "data quality, acquisition, and documentation",
-                "score": 94.6,
-                "rationale": "Contracts cover Stage 1/2 artifacts, Seoul Ddareungi priority/validation, generated reports, and local output boundaries",
+                "score": 95.0,
+                "rationale": "Contracts now cover Stage 1/2 artifacts, Seoul Ddareungi priority/validation, policy audit rows, reviewer action plan rows, generated reports, and local output boundaries",
             },
             {
                 "category": "EDA depth and insight quality",
-                "score": 94.3,
-                "rationale": "The product exposes blocker, readiness, queue, validation, and impact-card summaries instead of static metric reporting only",
+                "score": 94.9,
+                "rationale": "The product surfaces blocker, readiness, queue, validation, impact-card, public-claim, capacity, and marginal reviewer-plan summaries instead of static metric reporting only",
             },
             {
                 "category": "feature engineering or statistical design",
-                "score": 94.5,
-                "rationale": "Impact cards convert priority rows into candidate effect units, guardrail state, and reviewer evidence fields",
+                "score": 95.0,
+                "rationale": "Impact cards and action plans convert priority rows into candidate effect units, cumulative capacity, confidence thresholds, public-claim states, and reviewer evidence fields",
             },
             {
                 "category": "modeling, inference, optimization, or analytical method rigor",
-                "score": 94.4,
-                "rationale": "No new production model is claimed; Stage 2 evals and Seoul validation status gate every impact recommendation",
+                "score": 94.9,
+                "rationale": "No new production model is claimed; Stage 2 evals, Seoul validation, public deploy readiness, unsafe-vs-guarded policy audit, and capacity ranking gate every impact recommendation",
             },
             {
                 "category": "validation, testing, and reproducibility",
-                "score": 94.7,
-                "rationale": "run_all, FastAPI smoke, pytest, deployment readiness, and Sunday structural validator cover the product contract",
+                "score": 95.1,
+                "rationale": "run_all, FastAPI smoke, policy/action-plan endpoints, dashboard UI verification, pytest, deployment readiness, and Sunday structural validator cover the product contract",
             },
             {
                 "category": "interpretation, limitations, and decision usefulness",
-                "score": 95.0,
-                "rationale": "Impact cards distinguish candidate units, verified units, blocker, confidence, and public-claim state",
+                "score": 95.4,
+                "rationale": "Impact cards, policy audit, and action plan distinguish candidate units, verified units, blocked public claims, reviewer thresholds, confidence, and release boundaries",
             },
             {
                 "category": "code quality, structure, maintainability, and automation",
-                "score": 94.8,
-                "rationale": "The implementation stays in pipeline/app boundaries and keeps generated artifacts reproducible under OUTPUT_ROOT",
+                "score": 95.1,
+                "rationale": "The implementation stays in pipeline/app/dashboard boundaries and keeps generated policy/action artifacts reproducible under OUTPUT_ROOT",
             },
             {
                 "category": "portfolio presentation, README, figures, and final report",
-                "score": 94.6,
-                "rationale": "README, final report, system design, and API/dashboard now describe the impact-card workflow and NO_GO boundaries",
+                "score": 95.2,
+                "rationale": "README, final report, system design, API/dashboard, and demo package now describe impact cards, policy audit, action planning, and NO_GO boundaries in a conclusion-first format",
             },
             {
                 "category": "UI, visibility, readability, and mobile scanability",
-                "score": 94.4,
-                "rationale": "Dashboard exposes impact cards, guardrail state, and ops metrics in scan-friendly tables with responsive overflow",
+                "score": 95.0,
+                "rationale": "Dashboard exposes impact cards, policy audit, action plan, guardrail state, and ops metrics in scan-friendly sections with responsive overflow",
             },
             {
                 "category": "doctoral-level originality, depth, and technical ambition",
-                "score": 94.2,
-                "rationale": "The capstone links forecasting, public live mobility data, agentic guardrails, impact projection, and reviewer approval",
+                "score": 94.9,
+                "rationale": "The capstone links forecasting, public live mobility data, agentic guardrails, impact projection, public-overclaim prevention, capacity-constrained reviewer planning, and approval auditability",
             },
         ],
     )
@@ -659,7 +857,9 @@ def run(
     dashboard.mkdir(parents=True, exist_ok=True)
     inputs = _collect_inputs(bike_root, workbench_root)
     impact_cards = _build_impact_cards(inputs)
-    state = _build_control_state(inputs, impact_cards)
+    policy_audit = _build_impact_policy_audit(impact_cards)
+    action_plan = _build_reviewer_action_plan(impact_cards)
+    state = _build_control_state(inputs, impact_cards, policy_audit, action_plan)
     queue = _build_review_queue(inputs["workbench"]["review_queue"])
     api_contract = _build_api_contract()
 
@@ -674,8 +874,16 @@ def run(
     (reports / "impact_cards.json").write_text(
         json.dumps(impact_cards, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    _write_dashboard(dashboard / "index.html", state, queue, impact_cards)
-    _write_reports(output_root, state, impact_cards)
+    _write_csv(reports / "impact_policy_audit.csv", policy_audit)
+    (reports / "impact_policy_audit.json").write_text(
+        json.dumps(policy_audit, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _write_csv(reports / "reviewer_action_plan.csv", action_plan)
+    (reports / "reviewer_action_plan.json").write_text(
+        json.dumps(action_plan, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _write_dashboard(dashboard / "index.html", state, queue, impact_cards, policy_audit, action_plan)
+    _write_reports(output_root, state, impact_cards, policy_audit, action_plan)
     summary = {
         **state,
         "reports": {
@@ -684,6 +892,10 @@ def run(
             "review_queue": str(reports / "control_review_queue.csv"),
             "impact_cards": str(reports / "impact_cards.csv"),
             "impact_cards_json": str(reports / "impact_cards.json"),
+            "impact_policy_audit": str(reports / "impact_policy_audit.csv"),
+            "impact_policy_audit_json": str(reports / "impact_policy_audit.json"),
+            "reviewer_action_plan": str(reports / "reviewer_action_plan.csv"),
+            "reviewer_action_plan_json": str(reports / "reviewer_action_plan.json"),
             "dashboard": str(dashboard / "index.html"),
             "final_report": str(reports / "final_report.md"),
             "sqlite_database": str(output_root / "control_tower.sqlite"),

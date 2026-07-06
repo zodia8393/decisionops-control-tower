@@ -2,9 +2,9 @@
 
 ## Product Surface
 
-실행 surface는 `scripts/run_all.sh`가 제공하는 batch pipeline/CLI, FastAPI server, SQLite approval persistence, RBAC-lite write auth, structured JSON request logging, monitoring snapshot, deployment readiness gate, reviewer dashboard입니다. Public deploy는 upstream readiness가 `GO`가 될 때까지 차단합니다.
+실행 surface는 `scripts/run_all.sh`가 제공하는 batch pipeline/CLI, FastAPI server, SQLite approval persistence, RBAC-lite write auth, structured JSON request logging, monitoring snapshot, deployment readiness gate, policy audit, reviewer action plan, reviewer dashboard입니다. Public deploy는 upstream readiness가 `GO`가 될 때까지 차단합니다.
 
-이번 product slice는 서울 따릉이 재배치 추천을 위한 impact card를 추가했습니다. Impact card는 추천 action, 후보 shortage/overflow 완화 단위, baseline 대비 후보 개선량, confidence, evidence, blocker를 reviewer queue 옆에서 보여주는 control surface입니다. Seoul validation이 `READY`가 아니면 public claim은 차단하고 local review evidence로만 표시합니다.
+이번 product slice는 서울 따릉이 재배치 추천을 위한 impact card와 policy audit을 추가했습니다. Impact card는 추천 action, 후보 shortage/overflow 완화 단위, baseline 대비 후보 개선량, confidence, evidence, blocker를 reviewer queue 옆에서 보여줍니다. Policy audit은 무검토 공개 기준선과 guarded policy를 비교해 미검증 public claim 단위를 차단합니다.
 
 ## Architecture
 
@@ -22,6 +22,8 @@ Stage 2 agentic workbench artifacts
 
 Stage 1 impact simulation artifacts
   -> impact card projection
+  -> unsafe-vs-guarded policy audit
+  -> capacity-ranked reviewer action plan
   -> reviewer action rationale
   -> approval queue priority
   -> public claim blocker when readiness is NO_GO
@@ -38,6 +40,8 @@ Stage 1 impact simulation artifacts
 - Server: `scripts/run_server.sh`, default `http://127.0.0.1:8093`
 - API docs: `/docs`, `/openapi.json`
 - Impact cards: `/api/impact-cards`, `reports/impact_cards.csv`, `reports/impact_cards.json`
+- Impact policy audit: `/api/impact-policy-audit`, `reports/impact_policy_audit.csv`, `reports/impact_policy_audit.json`
+- Reviewer action plan: `/api/reviewer-action-plan`, `reports/reviewer_action_plan.csv`, `reports/reviewer_action_plan.json`
 - Write auth: `CONTROL_TOWER_ROLE_TOKENS` set -> approval POST requires `reviewer` or `admin` role via `X-Control-Tower-Token`
 - Structured logs: request logs are JSON lines and include request id, method, path, status, duration
 - Monitoring artifact: `reports/ops_metrics_snapshot.json` and append-only `reports/ops_metrics_history.jsonl`

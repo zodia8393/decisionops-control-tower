@@ -27,6 +27,8 @@ scripts/run_server.sh
 - Health: `http://127.0.0.1:8093/health`
 - OpenAPI docs: `http://127.0.0.1:8093/docs`
 - Ops metrics: `http://127.0.0.1:8093/api/ops-metrics`
+- Impact policy audit: `http://127.0.0.1:8093/api/impact-policy-audit`
+- Reviewer action plan: `http://127.0.0.1:8093/api/reviewer-action-plan`
 
 쓰기 인증 모드:
 
@@ -109,8 +111,11 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 - `scripts/smoke_api.py --auth-smoke`가 인증 없는 write 요청을 401로 막고, reviewer token이 인증 경계를 통과하는지 확인합니다.
 - `scripts/verify_private_demo.py`가 실제 role-token 설정에서 viewer write 차단, reviewer/admin write 인증, credential 비출력을 확인합니다.
 - `scripts/verify_dashboard_ui.py`가 한국어 UI, primary CTA, 지도 iframe/SVG fallback, 좌표 상태, 판단 근거 drawer, 내부 ID 숨김을 확인합니다.
+- `scripts/verify_dashboard_ui.py`가 policy audit과 reviewer action plan section도 확인합니다.
 - `scripts/capture_demo_screenshots.py`가 dashboard, 지도, review queue, OpenAPI 캡처와 manifest를 생성합니다.
 - `/api/ops-metrics`가 artifact freshness, queue, auth 상태를 반환합니다.
+- `/api/impact-policy-audit`가 unsafe baseline과 guarded policy의 미검증 claim 차단 결과를 반환합니다.
+- `/api/reviewer-action-plan`이 제한된 검토 용량에서 먼저 볼 local-only 후보를 반환합니다.
 - `scripts/write_monitoring_snapshot.py`가 latest snapshot과 history JSONL을 생성합니다.
 - `scripts/write_deployment_readiness.py`가 local/container/hosted/public deploy decision을 JSON/Markdown으로 생성합니다.
 - Docker/compose smoke가 image build, container startup, HTTP endpoints, healthcheck를 확인합니다.
