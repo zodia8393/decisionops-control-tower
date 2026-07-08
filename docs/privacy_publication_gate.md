@@ -30,4 +30,5 @@
 | deployment readiness | pass | deployment gate는 credential 값 없이 auth 설정 여부, role 이름, Docker/buildx 상태, blocker만 기록함 |
 | impact policy audit | pass | unsafe baseline의 미검증 claim 단위를 계산하되 guarded policy는 이를 public claim으로 내보내지 않음 |
 | reviewer action plan | pass | local-only 승인/근거요청 계획이며 외부 dispatch, upstream mutation, public claim을 실행하지 않음 |
+| AI reviewer agent | pass | agent brief와 candidate notes는 read-only artifact 요약이며 credential, approval write, field dispatch, 신규 성과 claim을 포함하지 않음 |
 | public deploy | blocked | bike-share readiness가 READY가 아니면 `NO_GO` 유지 |

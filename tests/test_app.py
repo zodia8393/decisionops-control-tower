@@ -66,6 +66,7 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
     assert "DecisionOps Control Tower" in dashboard.text
+    assert 'rel="icon"' in dashboard.text
     assert "검토 대기열" in dashboard.text
     assert "따릉이 후보 조치" in dashboard.text
     assert "영향 정책 비교" in dashboard.text
@@ -76,13 +77,17 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "지도에서 보기" in dashboard.text
     assert "정책 비교 보기" in dashboard.text
     assert "검토 계획 보기" in dashboard.text
+    assert "AI Reviewer Brief" in dashboard.text
+    assert "agent mode:" in dashboard.text
+    assert "deterministic gate:" in dashboard.text
+    assert "Evidence lock" in dashboard.text
+    assert "read-only reviewer assistant" in dashboard.text
     assert "지도에서 위치 확인" in dashboard.text
     assert "서울 따릉이 후보 조치 위치 지도" in dashboard.text
-    assert "서울 따릉이 후보 조치 실제 지도 타일" in dashboard.text
-    assert "openstreetmap.org/export/embed.html" in dashboard.text
-    assert 'referrerpolicy="no-referrer"' in dashboard.text
-    assert "후보 번호 지도" in dashboard.text
-    assert "외부 지도 타일이 차단되면" in dashboard.text
+    assert "tile.openstreetmap.org" in dashboard.text
+    assert "지도 타일 © OpenStreetMap contributors" in dashboard.text
+    assert "후보 번호 오버레이 지도" in dashboard.text
+    assert "후보 번호는 실제 지도 타일 위에 표시됩니다" in dashboard.text
     assert "지도 표시 가능 후보" in dashboard.text
     assert 'class="map-point' in dashboard.text
     assert 'href="#ddareungi-action-1"' in dashboard.text
@@ -139,6 +144,43 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "/api/impact-cards" in openapi.json()["paths"]
     assert "/api/impact-policy-audit" in openapi.json()["paths"]
     assert "/api/reviewer-action-plan" in openapi.json()["paths"]
+    assert "/api/agent/reviewer-brief" in openapi.json()["paths"]
+    assert "/api/agent/candidate/{candidate_id}/review-notes" in openapi.json()["paths"]
+
+
+def test_agent_reviewer_brief_is_fallback_and_evidence_locked(tmp_path, monkeypatch):
+    monkeypatch.delenv("CONTROL_TOWER_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    client = TestClient(create_app(output_root=tmp_path))
+
+    health = client.get("/health")
+    assert health.status_code == 200
+    health_payload = health.json()
+
+    brief = client.get("/api/agent/reviewer-brief")
+    assert brief.status_code == 200
+    payload = brief.json()
+    assert payload["mode"] == "fallback"
+    assert payload["llm"]["status"] == "not_configured"
+    assert payload["source_status"]["public_deploy_decision"] == health_payload["public_deploy_decision"]
+    assert payload["source_status"]["impact_card_rows"] == health_payload["impact_card_rows"]
+    assert payload["source_status"]["queue_total"] == health_payload["queue"]["total"]
+    assert payload["claim_safety"]["public_deploy_decision"] == health_payload["public_deploy_decision"]
+    assert payload["claim_safety"]["allowed_public_claim"] is False
+    assert "source of truth" in payload["claim_safety"]["rule"]
+    assert payload["evidence_refs"]
+
+    impact = client.get("/api/impact-cards").json()
+    first = impact["items"][0]
+    notes = client.get(f"/api/agent/candidate/{first['impact_card_id']}/review-notes")
+    assert notes.status_code == 200
+    note_payload = notes.json()
+    assert note_payload["mode"] == "fallback"
+    assert note_payload["matched_aliases"]["impact_card_id"] == first["impact_card_id"]
+    assert note_payload["claim_safety"]["public_deploy_decision"] == health_payload["public_deploy_decision"]
+
+    missing = client.get("/api/agent/candidate/NOT-A-CANDIDATE/review-notes")
+    assert missing.status_code == 404
 
 
 def test_fastapi_write_auth_when_token_configured(tmp_path):
@@ -241,4 +283,6 @@ def test_ops_metrics_report_artifact_health(tmp_path):
     assert payload["artifacts"]["impact_cards"]["exists"] is True
     assert payload["artifacts"]["impact_policy_audit"]["exists"] is True
     assert payload["artifacts"]["reviewer_action_plan"]["exists"] is True
+    assert payload["artifacts"]["agent_reviewer_brief"]["exists"] is True
+    assert payload["artifacts"]["agent_candidate_review_notes"]["exists"] is True
     assert payload["artifacts"]["sqlite_database"]["exists"] is True

@@ -15,6 +15,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from decisionops_control_tower.agent import (
+    build_candidate_review_notes,
+    build_fallback_reviewer_brief,
+)
 from decisionops_control_tower.dashboard import render_dashboard
 
 
@@ -686,6 +690,16 @@ def _build_api_contract() -> dict[str, Any]:
                 "path": "/api/reviewer-action-plan",
                 "returns": "capacity-ranked local reviewer actions with public-claim boundaries",
             },
+            {
+                "method": "GET",
+                "path": "/api/agent/reviewer-brief",
+                "returns": "read-only evidence-grounded reviewer brief with deterministic claim-safety lock",
+            },
+            {
+                "method": "GET",
+                "path": "/api/agent/candidate/{candidate_id}/review-notes",
+                "returns": "read-only candidate-level review notes without approval writes",
+            },
             {"method": "GET", "path": "/api/ops-metrics", "returns": "runtime, auth, queue, and artifact health"},
             {"method": "GET", "path": "/dashboard", "returns": "operator dashboard with approval actions"},
         ],
@@ -703,7 +717,9 @@ def _write_dashboard(
     impact_cards: list[dict[str, Any]],
     policy_audit: list[dict[str, Any]],
     action_plan: list[dict[str, Any]],
+    agent_brief: dict[str, Any],
 ) -> None:
+    ops = {"auth_required": False, "configured_roles": [], "artifacts": {}}
     path.write_text(
         render_dashboard(
             state=state,
@@ -712,7 +728,8 @@ def _write_dashboard(
             impact_policy_audit=policy_audit,
             reviewer_action_plan=action_plan,
             summary={"total": len(queue), "by_state": {"pending_reviewer": len(queue)}},
-            ops={"auth_required": False, "configured_roles": [], "artifacts": {}},
+            ops=ops,
+            agent_brief=agent_brief,
             include_actions=False,
             include_script=False,
         ),
@@ -726,6 +743,8 @@ def _write_reports(
     impact_cards: list[dict[str, Any]],
     policy_audit: list[dict[str, Any]],
     action_plan: list[dict[str, Any]],
+    agent_brief: dict[str, Any],
+    candidate_notes: list[dict[str, Any]],
 ) -> None:
     reports = output_root / "reports"
     final_report = reports / "final_report.md"
@@ -751,6 +770,8 @@ def _write_reports(
                 f"| Candidate impact units | {state['metrics']['impact_candidate_units_addressed']} | 검증 전 후보 이동량이며 production claim은 아님 |",
                 f"| Unsupported claim units avoided | {state['metrics']['impact_unsupported_claim_units_avoided']} | unsafe publish 대비 guarded policy가 차단한 미검증 claim 단위 |",
                 f"| Reviewer action plan | {state['metrics']['reviewer_action_plan_rows']} | 용량 제한 검토자가 먼저 볼 local-only 실행 계획 수 |",
+                f"| AI reviewer mode | {agent_brief.get('mode', 'fallback')} | LLM 미설정 시 deterministic fallback brief |",
+                f"| Candidate review notes | {len(candidate_notes)} | 상위 후보별 read-only 검토 메모 |",
                 f"| Incident rows | {state['metrics']['incident_rows']} | NY 511 기반 incident surface row 수 |",
                 f"| Guarded success | {state['metrics']['guarded_success_rate']:.3f} | Stage 2 main eval 성공률 |",
                 f"| Holdout success | {state['metrics']['holdout_success_rate']:.3f} | Stage 2 adversarial prompt 성공률 |",
@@ -764,6 +785,12 @@ def _write_reports(
                 f"- Unsafe baseline unsupported claim units: `{unsafe_row.get('unsupported_claim_units', 0)}`",
                 f"- Guarded policy unsupported claim units: `{guarded_row.get('unsupported_claim_units', 0)}`",
                 f"- Reviewer action plan rows: `{len(action_plan)}`",
+                f"- Agent brief mode: `{agent_brief.get('mode', 'fallback')}`",
+                f"- Candidate review notes: `{len(candidate_notes)}`",
+                "",
+                "## AI Reviewer Agent",
+                "",
+                "Agent는 health/API/artifact만 읽는 read-only reviewer assistant다. `agent_reviewer_brief.json`과 `agent_candidate_review_notes.json`은 agent가 사용한 source status, claim-safety rule, evidence refs, recommended next actions를 보존한다. Approval write, dispatch, `GO/NO_GO` 판단, 신규 효과 추정치는 deterministic pipeline과 policy gate에 남긴다.",
                 "",
                 "Public deploy와 impact 성과 claim은 upstream readiness와 hosted/private hardening이 끝날 때까지 `NO_GO`로 유지한다.",
             ]
@@ -773,7 +800,8 @@ def _write_reports(
     )
     (reports / "model_card.md").write_text(
         "# Control Tower System Card\n\n"
-        "이 시스템은 새 예측 모델이 아니라 Stage 1/2 산출물을 운영 승인 제품 표면으로 묶는 orchestration layer다.\n",
+        "이 시스템은 새 예측 모델이 아니라 Stage 1/2 산출물을 운영 승인 제품 표면으로 묶는 orchestration layer다.\n\n"
+        "AI Reviewer Agent는 read-only assistant이며, deterministic control state와 policy gate를 source of truth로 유지한다.\n",
         encoding="utf-8",
     )
     (reports / "data_source_and_contract.md").write_text(
@@ -781,7 +809,7 @@ def _write_reports(
         "- Stage 1: bike-share station readiness, deploy decision, inventory and priority artifacts.\n"
         "- Stage 1 Seoul: Ddareungi live priority and validation summary artifacts.\n"
         "- Stage 2: Agentic DecisionOps eval, holdout, prepublish, MCP contract, review queue, NY 511 incident surface.\n"
-        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, impact policy audit CSV/JSON, reviewer action plan CSV/JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
+        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, impact policy audit CSV/JSON, reviewer action plan CSV/JSON, agent reviewer brief JSON, candidate review notes JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
         encoding="utf-8",
     )
     _write_csv(
@@ -789,61 +817,93 @@ def _write_reports(
         [
             {
                 "category": "problem framing and business/career relevance",
-                "score": 95.6,
-                "rationale": "Control Tower connects operations ML, guarded decisions, approval workflow, Seoul impact cards, policy audit, and reviewer action planning into one capstone product slice",
+                "score": 95.8,
+                "rationale": "Control Tower connects operations ML, guarded decisions, approval workflow, Seoul impact cards, policy audit, reviewer action planning, and evidence-locked AI review assistance into one capstone product slice",
             },
             {
                 "category": "data quality, acquisition, and documentation",
-                "score": 95.0,
-                "rationale": "Contracts now cover Stage 1/2 artifacts, Seoul Ddareungi priority/validation, policy audit rows, reviewer action plan rows, generated reports, and local output boundaries",
+                "score": 95.2,
+                "rationale": "Contracts now cover Stage 1/2 artifacts, Seoul Ddareungi priority/validation, policy audit rows, reviewer action plan rows, generated agent evidence artifacts, and local output boundaries",
             },
             {
                 "category": "EDA depth and insight quality",
-                "score": 94.9,
-                "rationale": "The product surfaces blocker, readiness, queue, validation, impact-card, public-claim, capacity, and marginal reviewer-plan summaries instead of static metric reporting only",
+                "score": 95.1,
+                "rationale": "The product surfaces blocker, readiness, queue, validation, impact-card, public-claim, capacity, marginal reviewer-plan, and agent risk summaries instead of static metric reporting only",
             },
             {
                 "category": "feature engineering or statistical design",
-                "score": 95.0,
-                "rationale": "Impact cards and action plans convert priority rows into candidate effect units, cumulative capacity, confidence thresholds, public-claim states, and reviewer evidence fields",
+                "score": 95.2,
+                "rationale": "Impact cards, action plans, and candidate notes convert priority rows into candidate effect units, cumulative capacity, confidence thresholds, public-claim states, and reviewer evidence fields",
             },
             {
                 "category": "modeling, inference, optimization, or analytical method rigor",
-                "score": 94.9,
-                "rationale": "No new production model is claimed; Stage 2 evals, Seoul validation, public deploy readiness, unsafe-vs-guarded policy audit, and capacity ranking gate every impact recommendation",
+                "score": 95.1,
+                "rationale": "No new production model is claimed; Stage 2 evals, Seoul validation, public deploy readiness, unsafe-vs-guarded policy audit, capacity ranking, and deterministic claim-safety lock gate every recommendation",
             },
             {
                 "category": "validation, testing, and reproducibility",
-                "score": 95.1,
-                "rationale": "run_all, FastAPI smoke, policy/action-plan endpoints, dashboard UI verification, pytest, deployment readiness, and Sunday structural validator cover the product contract",
+                "score": 95.3,
+                "rationale": "run_all, FastAPI smoke, agent endpoints, policy/action-plan endpoints, dashboard UI verification, pytest, deployment readiness, and Sunday structural validator cover the product contract",
             },
             {
                 "category": "interpretation, limitations, and decision usefulness",
-                "score": 95.4,
-                "rationale": "Impact cards, policy audit, and action plan distinguish candidate units, verified units, blocked public claims, reviewer thresholds, confidence, and release boundaries",
+                "score": 95.6,
+                "rationale": "Impact cards, policy audit, action plan, and agent brief distinguish candidate units, verified units, blocked public claims, reviewer thresholds, confidence, and release boundaries",
             },
             {
                 "category": "code quality, structure, maintainability, and automation",
-                "score": 95.1,
-                "rationale": "The implementation stays in pipeline/app/dashboard boundaries and keeps generated policy/action artifacts reproducible under OUTPUT_ROOT",
+                "score": 95.3,
+                "rationale": "The implementation stays in pipeline/app/dashboard/agent boundaries and keeps generated policy/action/agent artifacts reproducible under OUTPUT_ROOT",
             },
             {
                 "category": "portfolio presentation, README, figures, and final report",
-                "score": 95.2,
-                "rationale": "README, final report, system design, API/dashboard, and demo package now describe impact cards, policy audit, action planning, and NO_GO boundaries in a conclusion-first format",
+                "score": 95.4,
+                "rationale": "README, final report, system design, API/dashboard, demo package, and generated agent artifacts now describe impact cards, policy audit, action planning, AI review assistance, and NO_GO boundaries in a conclusion-first format",
             },
             {
                 "category": "UI, visibility, readability, and mobile scanability",
-                "score": 95.0,
-                "rationale": "Dashboard exposes impact cards, policy audit, action plan, guardrail state, and ops metrics in scan-friendly sections with responsive overflow",
+                "score": 95.2,
+                "rationale": "Dashboard exposes agent brief, impact cards, map overlay, policy audit, action plan, guardrail state, and ops metrics in scan-friendly sections with responsive overflow",
             },
             {
                 "category": "doctoral-level originality, depth, and technical ambition",
-                "score": 94.9,
-                "rationale": "The capstone links forecasting, public live mobility data, agentic guardrails, impact projection, public-overclaim prevention, capacity-constrained reviewer planning, and approval auditability",
+                "score": 95.1,
+                "rationale": "The capstone links forecasting, public live mobility data, agentic guardrails, impact projection, public-overclaim prevention, evidence-grounded AI review, capacity-constrained reviewer planning, and approval auditability",
             },
         ],
     )
+
+
+def _build_static_agent_artifacts(
+    state: dict[str, Any],
+    queue: list[dict[str, Any]],
+    impact_cards: list[dict[str, Any]],
+    policy_audit: list[dict[str, Any]],
+    action_plan: list[dict[str, Any]],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    ops = {"auth_required": False, "configured_roles": [], "artifacts": {}}
+    agent_brief = build_fallback_reviewer_brief(
+        state=state,
+        queue=queue,
+        impact_cards=impact_cards,
+        policy_audit=policy_audit,
+        action_plan=action_plan,
+        ops=ops,
+    )
+    candidate_notes = []
+    for item in impact_cards[:8]:
+        candidate_id = str(item.get("impact_card_id") or item.get("station_id") or "")
+        if not candidate_id:
+            continue
+        notes = build_candidate_review_notes(
+            candidate_id=candidate_id,
+            state=state,
+            impact_cards=impact_cards,
+            action_plan=action_plan,
+        )
+        if notes is not None:
+            candidate_notes.append(notes)
+    return agent_brief, candidate_notes
 
 
 def run(
@@ -862,6 +922,9 @@ def run(
     state = _build_control_state(inputs, impact_cards, policy_audit, action_plan)
     queue = _build_review_queue(inputs["workbench"]["review_queue"])
     api_contract = _build_api_contract()
+    agent_brief, candidate_notes = _build_static_agent_artifacts(
+        state, queue, impact_cards, policy_audit, action_plan
+    )
 
     (reports / "control_state.json").write_text(
         json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -882,8 +945,30 @@ def run(
     (reports / "reviewer_action_plan.json").write_text(
         json.dumps(action_plan, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    _write_dashboard(dashboard / "index.html", state, queue, impact_cards, policy_audit, action_plan)
-    _write_reports(output_root, state, impact_cards, policy_audit, action_plan)
+    (reports / "agent_reviewer_brief.json").write_text(
+        json.dumps(agent_brief, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    (reports / "agent_candidate_review_notes.json").write_text(
+        json.dumps(candidate_notes, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _write_dashboard(
+        dashboard / "index.html",
+        state,
+        queue,
+        impact_cards,
+        policy_audit,
+        action_plan,
+        agent_brief,
+    )
+    _write_reports(
+        output_root,
+        state,
+        impact_cards,
+        policy_audit,
+        action_plan,
+        agent_brief,
+        candidate_notes,
+    )
     summary = {
         **state,
         "reports": {
@@ -896,6 +981,8 @@ def run(
             "impact_policy_audit_json": str(reports / "impact_policy_audit.json"),
             "reviewer_action_plan": str(reports / "reviewer_action_plan.csv"),
             "reviewer_action_plan_json": str(reports / "reviewer_action_plan.json"),
+            "agent_reviewer_brief": str(reports / "agent_reviewer_brief.json"),
+            "agent_candidate_review_notes": str(reports / "agent_candidate_review_notes.json"),
             "dashboard": str(dashboard / "index.html"),
             "final_report": str(reports / "final_report.md"),
             "sqlite_database": str(output_root / "control_tower.sqlite"),

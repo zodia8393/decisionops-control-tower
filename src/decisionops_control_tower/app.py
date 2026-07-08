@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from decisionops_control_tower.agent import build_candidate_review_notes, build_reviewer_brief
 from decisionops_control_tower.dashboard import render_dashboard
 from decisionops_control_tower.pipeline import (
     DEFAULT_BIKE_ROOT,
@@ -116,6 +117,7 @@ def _needs_pipeline_refresh(output_root: Path) -> bool:
         output_root / "reports" / "impact_cards.json",
         output_root / "reports" / "impact_policy_audit.json",
         output_root / "reports" / "reviewer_action_plan.json",
+        output_root / "reports" / "agent_reviewer_brief.json",
         output_root / "reports" / "api_contract.json",
         output_root / "dashboard" / "index.html",
     ]
@@ -241,6 +243,12 @@ def create_app(
             "reviewer_action_plan": _artifact_status(
                 app.state.output_root / "reports" / "reviewer_action_plan.json"
             ),
+            "agent_reviewer_brief": _artifact_status(
+                app.state.output_root / "reports" / "agent_reviewer_brief.json"
+            ),
+            "agent_candidate_review_notes": _artifact_status(
+                app.state.output_root / "reports" / "agent_candidate_review_notes.json"
+            ),
             "dashboard": _artifact_status(app.state.output_root / "dashboard" / "index.html"),
             "sqlite_database": _artifact_status(database_path(app.state.output_root)),
         }
@@ -256,6 +264,26 @@ def create_app(
             "artifacts": artifacts,
         }
 
+    def runtime_sources() -> dict[str, Any]:
+        state = _read_json(app.state.output_root / "reports" / "control_state.json", {})
+        queue = list_queue(app.state.output_root)
+        cards = _read_json(app.state.output_root / "reports" / "impact_cards.json", [])
+        if not isinstance(cards, list):
+            cards = []
+        policy_audit = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
+        if not isinstance(policy_audit, list):
+            policy_audit = []
+        action_plan = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
+        if not isinstance(action_plan, list):
+            action_plan = []
+        return {
+            "state": state,
+            "queue": queue,
+            "impact_cards": cards,
+            "impact_policy_audit": policy_audit,
+            "reviewer_action_plan": action_plan,
+        }
+
     @app.get("/")
     def read_root() -> dict[str, str]:
         ensure_ready()
@@ -266,6 +294,7 @@ def create_app(
             "impact_cards": "/api/impact-cards",
             "impact_policy_audit": "/api/impact-policy-audit",
             "reviewer_action_plan": "/api/reviewer-action-plan",
+            "agent_reviewer_brief": "/api/agent/reviewer-brief",
             "ops": "/api/ops-metrics",
             "openapi": "/docs",
         }
@@ -365,32 +394,64 @@ def create_app(
         ensure_ready()
         return ops_metrics()
 
+    @app.get("/api/agent/reviewer-brief")
+    def agent_reviewer_brief() -> dict[str, Any]:
+        ensure_ready()
+        sources = runtime_sources()
+        return build_reviewer_brief(
+            state=sources["state"],
+            queue=sources["queue"],
+            impact_cards=sources["impact_cards"],
+            policy_audit=sources["impact_policy_audit"],
+            action_plan=sources["reviewer_action_plan"],
+            ops=ops_metrics(),
+        )
+
+    @app.get("/api/agent/candidate/{candidate_id}/review-notes")
+    def agent_candidate_review_notes(candidate_id: str) -> dict[str, Any]:
+        ensure_ready()
+        sources = runtime_sources()
+        notes = build_candidate_review_notes(
+            candidate_id=candidate_id,
+            state=sources["state"],
+            impact_cards=sources["impact_cards"],
+            action_plan=sources["reviewer_action_plan"],
+        )
+        if notes is None:
+            raise HTTPException(status_code=404, detail="candidate_id not found")
+        return notes
+
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard() -> HTMLResponse:
         ensure_ready()
-        state = _read_json(app.state.output_root / "reports" / "control_state.json", {})
-        queue = list_queue(app.state.output_root)
+        sources = runtime_sources()
+        state = sources["state"]
+        queue = sources["queue"]
         history = list_history(app.state.output_root, limit=25)
         summary = queue_summary(app.state.output_root)
-        cards = _read_json(app.state.output_root / "reports" / "impact_cards.json", [])
-        if not isinstance(cards, list):
-            cards = []
-        policy_audit = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
-        if not isinstance(policy_audit, list):
-            policy_audit = []
-        action_plan = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
-        if not isinstance(action_plan, list):
-            action_plan = []
+        cards = sources["impact_cards"]
+        policy_audit = sources["impact_policy_audit"]
+        action_plan = sources["reviewer_action_plan"]
+        ops = ops_metrics()
+        agent_brief = build_reviewer_brief(
+            state=state,
+            queue=queue,
+            impact_cards=cards,
+            policy_audit=policy_audit,
+            action_plan=action_plan,
+            ops=ops,
+        )
         return HTMLResponse(
             render_dashboard(
                 state=state,
                 queue=queue,
                 history=history,
                 summary=summary,
-                ops=ops_metrics(),
+                ops=ops,
                 impact_cards=cards,
                 impact_policy_audit=policy_audit,
                 reviewer_action_plan=action_plan,
+                agent_brief=agent_brief,
             )
         )
 

@@ -48,6 +48,11 @@ def _smoke_basic(args: argparse.Namespace) -> None:
     policy.raise_for_status()
     action_plan = client.get("/api/reviewer-action-plan")
     action_plan.raise_for_status()
+    agent = client.get("/api/agent/reviewer-brief")
+    agent.raise_for_status()
+    first_impact = impact.json()["items"][0]
+    candidate = client.get(f"/api/agent/candidate/{first_impact['impact_card_id']}/review-notes")
+    candidate.raise_for_status()
     ops = client.get("/api/ops-metrics")
     ops.raise_for_status()
     dashboard = client.get("/dashboard")
@@ -62,6 +67,7 @@ def _smoke_basic(args: argparse.Namespace) -> None:
         f"impact_cards={impact.json()['count']}, "
         f"policy_rows={policy.json()['count']}, "
         f"action_plan_rows={action_plan.json()['count']}, "
+        f"agent_mode={agent.json()['mode']}, "
         f"auth_required={payload['auth_required']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"
     )

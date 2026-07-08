@@ -46,6 +46,8 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert Path(summary["reports"]["impact_policy_audit_json"]).exists()
     assert Path(summary["reports"]["reviewer_action_plan"]).exists()
     assert Path(summary["reports"]["reviewer_action_plan_json"]).exists()
+    assert Path(summary["reports"]["agent_reviewer_brief"]).exists()
+    assert Path(summary["reports"]["agent_candidate_review_notes"]).exists()
     assert Path(summary["reports"]["dashboard"]).exists()
     dashboard_html = Path(summary["reports"]["dashboard"]).read_text(encoding="utf-8")
     assert "오늘의 결론" in dashboard_html
@@ -53,13 +55,17 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "지도에서 보기" in dashboard_html
     assert "정책 비교 보기" in dashboard_html
     assert "검토 계획 보기" in dashboard_html
+    assert "AI Reviewer Brief" in dashboard_html
+    assert "agent mode:" in dashboard_html
+    assert "deterministic gate:" in dashboard_html
+    assert "Evidence lock" in dashboard_html
+    assert "read-only reviewer assistant" in dashboard_html
     assert "지도에서 위치 확인" in dashboard_html
     assert "서울 따릉이 후보 조치 위치 지도" in dashboard_html
-    assert "서울 따릉이 후보 조치 실제 지도 타일" in dashboard_html
-    assert "openstreetmap.org/export/embed.html" in dashboard_html
-    assert 'referrerpolicy="no-referrer"' in dashboard_html
-    assert "후보 번호 지도" in dashboard_html
-    assert "외부 지도 타일이 차단되면" in dashboard_html
+    assert "tile.openstreetmap.org" in dashboard_html
+    assert "지도 타일 © OpenStreetMap contributors" in dashboard_html
+    assert "후보 번호 오버레이 지도" in dashboard_html
+    assert "후보 번호는 실제 지도 타일 위에 표시됩니다" in dashboard_html
     assert "점이 클수록 예상 완화량이 큽니다." in dashboard_html
     assert 'href="#ddareungi-action-1"' in dashboard_html
     assert 'id="ddareungi-action-1"' in dashboard_html
@@ -84,6 +90,21 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "task_" not in dashboard_html
     assert "table-wrap" in dashboard_html
     assert "data-decision" not in dashboard_html
+
+    api_contract = json.loads(Path(summary["reports"]["api_contract"]).read_text(encoding="utf-8"))
+    paths = {item["path"] for item in api_contract["endpoints"]}
+    assert "/api/agent/reviewer-brief" in paths
+    assert "/api/agent/candidate/{candidate_id}/review-notes" in paths
+
+    agent_brief = json.loads(Path(summary["reports"]["agent_reviewer_brief"]).read_text(encoding="utf-8"))
+    assert agent_brief["mode"] == "fallback"
+    assert agent_brief["claim_safety"]["rule"]
+    candidate_notes = json.loads(
+        Path(summary["reports"]["agent_candidate_review_notes"]).read_text(encoding="utf-8")
+    )
+    assert candidate_notes
+    assert candidate_notes[0]["mode"] == "fallback"
+    assert candidate_notes[0]["claim_safety"]["public_deploy_decision"] == summary["public_deploy_decision"]
 
     impact_cards = json.loads(Path(summary["reports"]["impact_cards_json"]).read_text(encoding="utf-8"))
     assert impact_cards[0]["station_lat"]

@@ -107,10 +107,10 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 
 - `pytest`가 통과합니다.
 - 산출물 root 아래 `reports/run_summary.json` 또는 동등한 실행 요약이 생성됩니다.
-- `scripts/smoke_api.py`가 `/health`, `/api/review-queue`, `/dashboard`, `/openapi.json`를 확인합니다.
+- `scripts/smoke_api.py`가 `/health`, `/api/review-queue`, `/api/agent/reviewer-brief`, `/dashboard`, `/openapi.json`를 확인합니다.
 - `scripts/smoke_api.py --auth-smoke`가 인증 없는 write 요청을 401로 막고, reviewer token이 인증 경계를 통과하는지 확인합니다.
 - `scripts/verify_private_demo.py`가 실제 role-token 설정에서 viewer write 차단, reviewer/admin write 인증, credential 비출력을 확인합니다.
-- `scripts/verify_dashboard_ui.py`가 한국어 UI, primary CTA, 지도 iframe/SVG fallback, 좌표 상태, 판단 근거 drawer, 내부 ID 숨김을 확인합니다.
+- `scripts/verify_dashboard_ui.py`가 한국어 UI, primary CTA, OpenStreetMap tile 기반 후보번호 overlay, AI Reviewer Brief, 좌표 상태, 판단 근거 drawer, 내부 ID 숨김을 확인합니다.
 - `scripts/verify_dashboard_ui.py`가 policy audit과 reviewer action plan section도 확인합니다.
 - `scripts/capture_demo_screenshots.py`가 dashboard, 지도, review queue, OpenAPI 캡처와 manifest를 생성합니다.
 - `/api/ops-metrics`가 artifact freshness, queue, auth 상태를 반환합니다.

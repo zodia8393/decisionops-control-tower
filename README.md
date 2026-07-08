@@ -11,8 +11,9 @@
 ## 무엇을 만들었나
 
 | Surface | 구현 증거 | 의사결정 |
-|---|---|
+|---|---|---|
 | Reviewer dashboard | 지도, impact cards, policy audit, action plan | 먼저 검토할 후보 선택 |
+| AI Reviewer Agent | evidence-locked reviewer brief, candidate review notes | 근거 기반 검토 요약 |
 | Approval API | role token 기반 approve/reject/needs-more-evidence | local audit 기록 |
 | SQLite audit trail | `control_tower.sqlite` | 결정 이력 보존 |
 | Deployment gate | local/container/hosted/public 분리 | 공개 여부 `GO/NO_GO` |
@@ -25,6 +26,7 @@
 | Candidate units | 837 | 검토 대상 후보 이동량 |
 | Unsupported claim avoided | 837 | 공개 claim으로 쓰지 않고 차단한 단위 |
 | Reviewer action plan | 8 | 검토자가 먼저 볼 local-only 계획 |
+| Agent review notes | 8 | 상위 후보별 evidence-locked 검토 메모 |
 | Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
 | Public deploy | `NO_GO` | 외부 공개 차단 상태 |
 
@@ -94,6 +96,8 @@ scripts/run_server.sh
 | Impact cards | `http://127.0.0.1:8093/api/impact-cards` |
 | Policy audit | `http://127.0.0.1:8093/api/impact-policy-audit` |
 | Action plan | `http://127.0.0.1:8093/api/reviewer-action-plan` |
+| AI reviewer brief | `http://127.0.0.1:8093/api/agent/reviewer-brief` |
+| Candidate review notes | `http://127.0.0.1:8093/api/agent/candidate/{candidate_id}/review-notes` |
 | Ops metrics | `http://127.0.0.1:8093/api/ops-metrics` |
 | OpenAPI | `http://127.0.0.1:8093/docs` |
 
@@ -105,6 +109,8 @@ scripts/run_server.sh
 | Impact cards | `reports/impact_cards.json` | 따릉이 후보 조치 |
 | Policy audit | `reports/impact_policy_audit.json` | 공개 claim 차단 검증 |
 | Action plan | `reports/reviewer_action_plan.json` | 검토 우선순위 |
+| Agent brief | `reports/agent_reviewer_brief.json` | read-only 검토 요약 |
+| Candidate notes | `reports/agent_candidate_review_notes.json` | 후보별 evidence lock |
 | Dashboard | `dashboard/index.html` | reviewer 화면 |
 | Quality gate | `reports/quality_gate_scores.csv` | portfolio quality score |
 
@@ -122,6 +128,12 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 
 Runbook: [docs/private_demo_runbook.md](docs/private_demo_runbook.md)
 
+## AI Reviewer Agent
+
+LLM은 source of truth가 아니라 reviewer assistant입니다. `/api/agent/reviewer-brief`는 health/API/artifact를 근거로 현재 상태, claim risk, 다음 검토 action을 요약하지만, `GO/NO_GO`와 수치는 deterministic pipeline과 policy gate에서 가져옵니다.
+
+기본값은 credential 없이 동작하는 `fallback` mode입니다. 선택적으로 `CONTROL_TOWER_LLM_PROVIDER=openai`, `OPENAI_API_KEY`, `CONTROL_TOWER_LLM_MODEL`을 설정하면 LLM 요약을 시도하되, 실패하거나 미설정이면 fallback brief를 반환합니다. Token 값은 log, report, screenshot에 출력하지 않습니다.
+
 ## 검증
 
 ```bash
@@ -129,6 +141,7 @@ python3 -m compileall -q src tests scripts
 PYTHONPATH=src python3 -m pytest -q
 scripts/run_all.sh
 PYTHONPATH=src scripts/verify_dashboard_ui.py
+curl -fsS http://127.0.0.1:8093/api/agent/reviewer-brief
 PYTHONPATH=src scripts/smoke_api.py --auth-smoke
 ```
 
