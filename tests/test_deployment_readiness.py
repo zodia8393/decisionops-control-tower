@@ -41,6 +41,7 @@ def test_deployment_readiness_writes_private_demo_gate(tmp_path, monkeypatch):
     assert payload["decisions"]["local_private_demo"] == "GO"
     assert payload["decisions"]["container_demo"] == "GO"
     assert payload["decisions"]["public_deploy"] == "NO_GO"
+    assert payload["artifacts"]["reviewer_evidence_bundles"]["exists"] is True
     assert payload["auth"]["scheme"] == "demo"
     assert any("buildx" in warning for warning in payload["warnings"])
     assert Path(paths["json"]).exists()

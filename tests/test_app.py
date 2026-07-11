@@ -22,7 +22,9 @@ def test_fastapi_review_workflow_persists_approval(tmp_path):
     assert health.json()["demo_mode_ready"] is True
     assert health.json()["auth_required"] is False
     assert health.json()["impact_policy_audit_rows"] > 0
+    assert health.json()["reviewer_policy_robustness_rows"] == 36
     assert health.json()["reviewer_action_plan_rows"] > 0
+    assert health.json()["reviewer_evidence_bundle_rows"] > 0
 
     queue = client.get("/api/review-queue").json()
     assert queue["count"] > 0
@@ -70,7 +72,11 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "검토 대기열" in dashboard.text
     assert "따릉이 후보 조치" in dashboard.text
     assert "영향 정책 비교" in dashboard.text
+    assert "Reviewer policy robustness" in dashboard.text
     assert "검토 실행 계획" in dashboard.text
+    assert "심의 근거 패킷" in dashboard.text
+    assert "근거 패킷 보기" in dashboard.text
+    assert "SHA-256" in dashboard.text
     assert "오늘의 결론" in dashboard.text
     assert "지금 해야 할 일" in dashboard.text
     assert "검토 대기열 보기" in dashboard.text
@@ -137,6 +143,35 @@ def test_fastapi_validation_and_dashboard(tmp_path):
         "needs_more_evidence",
     }
 
+    evidence = client.get("/api/reviewer-evidence-bundles")
+    assert evidence.status_code == 200
+    assert evidence.json()["count"] > 0
+    first_bundle = evidence.json()["items"][0]
+    assert len(first_bundle["evidence_fingerprint_sha256"]) == 64
+    assert first_bundle["freshness_status"] in {
+        "fresh",
+        "stale",
+        "missing_timestamp",
+        "future_timestamp",
+    }
+    filtered = client.get(
+        "/api/reviewer-evidence-bundles",
+        params={"freshness_status": first_bundle["freshness_status"]},
+    )
+    assert filtered.status_code == 200
+    assert filtered.json()["count"] > 0
+
+    robustness = client.get(
+        "/api/reviewer-policy-robustness",
+        params={
+            "scenario": "confidence_stress",
+            "policy": "confidence_weighted_guarded_capacity",
+        },
+    )
+    assert robustness.status_code == 200
+    assert robustness.json()["count"] == 3
+    assert robustness.json()["summary"]["guarded_public_claim_violations"] == 0
+
     openapi = client.get("/openapi.json")
     assert openapi.status_code == 200
     assert "/api/review-queue/{control_id}/decision" in openapi.json()["paths"]
@@ -144,6 +179,8 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "/api/impact-cards" in openapi.json()["paths"]
     assert "/api/impact-policy-audit" in openapi.json()["paths"]
     assert "/api/reviewer-action-plan" in openapi.json()["paths"]
+    assert "/api/reviewer-policy-robustness" in openapi.json()["paths"]
+    assert "/api/reviewer-evidence-bundles" in openapi.json()["paths"]
     assert "/api/agent/reviewer-brief" in openapi.json()["paths"]
     assert "/api/agent/candidate/{candidate_id}/review-notes" in openapi.json()["paths"]
 
@@ -282,7 +319,9 @@ def test_ops_metrics_report_artifact_health(tmp_path):
     assert payload["artifacts"]["control_state"]["exists"] is True
     assert payload["artifacts"]["impact_cards"]["exists"] is True
     assert payload["artifacts"]["impact_policy_audit"]["exists"] is True
+    assert payload["artifacts"]["reviewer_policy_robustness"]["exists"] is True
     assert payload["artifacts"]["reviewer_action_plan"]["exists"] is True
+    assert payload["artifacts"]["reviewer_evidence_bundles"]["exists"] is True
     assert payload["artifacts"]["agent_reviewer_brief"]["exists"] is True
     assert payload["artifacts"]["agent_candidate_review_notes"]["exists"] is True
     assert payload["artifacts"]["sqlite_database"]["exists"] is True

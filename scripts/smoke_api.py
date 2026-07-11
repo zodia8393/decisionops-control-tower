@@ -46,8 +46,12 @@ def _smoke_basic(args: argparse.Namespace) -> None:
     impact.raise_for_status()
     policy = client.get("/api/impact-policy-audit")
     policy.raise_for_status()
+    robustness = client.get("/api/reviewer-policy-robustness")
+    robustness.raise_for_status()
     action_plan = client.get("/api/reviewer-action-plan")
     action_plan.raise_for_status()
+    evidence_bundles = client.get("/api/reviewer-evidence-bundles")
+    evidence_bundles.raise_for_status()
     agent = client.get("/api/agent/reviewer-brief")
     agent.raise_for_status()
     first_impact = impact.json()["items"][0]
@@ -66,7 +70,9 @@ def _smoke_basic(args: argparse.Namespace) -> None:
         f"queue_total={payload['queue']['total']}, "
         f"impact_cards={impact.json()['count']}, "
         f"policy_rows={policy.json()['count']}, "
+        f"robustness_rows={robustness.json()['count']}, "
         f"action_plan_rows={action_plan.json()['count']}, "
+        f"evidence_bundles={evidence_bundles.json()['count']}, "
         f"agent_mode={agent.json()['mode']}, "
         f"auth_required={payload['auth_required']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"

@@ -28,7 +28,9 @@ scripts/run_server.sh
 - OpenAPI docs: `http://127.0.0.1:8093/docs`
 - Ops metrics: `http://127.0.0.1:8093/api/ops-metrics`
 - Impact policy audit: `http://127.0.0.1:8093/api/impact-policy-audit`
+- Reviewer policy robustness: `http://127.0.0.1:8093/api/reviewer-policy-robustness`
 - Reviewer action plan: `http://127.0.0.1:8093/api/reviewer-action-plan`
+- Reviewer evidence bundles: `http://127.0.0.1:8093/api/reviewer-evidence-bundles`
 
 쓰기 인증 모드:
 
@@ -115,7 +117,10 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 - `scripts/capture_demo_screenshots.py`가 dashboard, 지도, review queue, OpenAPI 캡처와 manifest를 생성합니다.
 - `/api/ops-metrics`가 artifact freshness, queue, auth 상태를 반환합니다.
 - `/api/impact-policy-audit`가 unsafe baseline과 guarded policy의 미검증 claim 차단 결과를 반환합니다.
+- `/api/reviewer-policy-robustness`가 36개 deterministic stress row, safety dominance, regret, selection stability를 반환합니다.
 - `/api/reviewer-action-plan`이 제한된 검토 용량에서 먼저 볼 local-only 후보를 반환합니다.
+- `/api/reviewer-evidence-bundles`가 source age, freshness status, lock status, 64자 SHA-256 fingerprint를 반환합니다.
+- stale/missing/future timestamp bundle은 `needs_more_evidence`로 차단됩니다.
 - `scripts/write_monitoring_snapshot.py`가 latest snapshot과 history JSONL을 생성합니다.
 - `scripts/write_deployment_readiness.py`가 local/container/hosted/public deploy decision을 JSON/Markdown으로 생성합니다.
 - Docker/compose smoke가 image build, container startup, HTTP endpoints, healthcheck를 확인합니다.

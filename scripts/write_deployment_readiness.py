@@ -176,7 +176,13 @@ def collect_readiness(
         "review_queue": _artifact(reports / "control_review_queue.csv"),
         "api_contract": _artifact(reports / "api_contract.json"),
         "impact_policy_audit": _artifact(reports / "impact_policy_audit.json"),
+        "reviewer_policy_robustness": _artifact(
+            reports / "reviewer_policy_robustness.json"
+        ),
         "reviewer_action_plan": _artifact(reports / "reviewer_action_plan.json"),
+        "reviewer_evidence_bundles": _artifact(
+            reports / "reviewer_evidence_bundles.json"
+        ),
         "agent_reviewer_brief": _artifact(reports / "agent_reviewer_brief.json"),
         "agent_candidate_review_notes": _artifact(reports / "agent_candidate_review_notes.json"),
         "dashboard": _artifact(output_root / "dashboard" / "index.html"),
@@ -189,7 +195,9 @@ def collect_readiness(
         "review_queue",
         "api_contract",
         "impact_policy_audit",
+        "reviewer_policy_robustness",
         "reviewer_action_plan",
+        "reviewer_evidence_bundles",
         "agent_reviewer_brief",
         "agent_candidate_review_notes",
         "dashboard",

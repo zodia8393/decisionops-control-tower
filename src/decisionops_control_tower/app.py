@@ -116,7 +116,9 @@ def _needs_pipeline_refresh(output_root: Path) -> bool:
         output_root / "reports" / "control_review_queue.csv",
         output_root / "reports" / "impact_cards.json",
         output_root / "reports" / "impact_policy_audit.json",
+        output_root / "reports" / "reviewer_policy_robustness.json",
         output_root / "reports" / "reviewer_action_plan.json",
+        output_root / "reports" / "reviewer_evidence_bundles.json",
         output_root / "reports" / "agent_reviewer_brief.json",
         output_root / "reports" / "api_contract.json",
         output_root / "dashboard" / "index.html",
@@ -240,8 +242,14 @@ def create_app(
             "impact_policy_audit": _artifact_status(
                 app.state.output_root / "reports" / "impact_policy_audit.json"
             ),
+            "reviewer_policy_robustness": _artifact_status(
+                app.state.output_root / "reports" / "reviewer_policy_robustness.json"
+            ),
             "reviewer_action_plan": _artifact_status(
                 app.state.output_root / "reports" / "reviewer_action_plan.json"
+            ),
+            "reviewer_evidence_bundles": _artifact_status(
+                app.state.output_root / "reports" / "reviewer_evidence_bundles.json"
             ),
             "agent_reviewer_brief": _artifact_status(
                 app.state.output_root / "reports" / "agent_reviewer_brief.json"
@@ -273,15 +281,27 @@ def create_app(
         policy_audit = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
         if not isinstance(policy_audit, list):
             policy_audit = []
+        policy_robustness = _read_json(
+            app.state.output_root / "reports" / "reviewer_policy_robustness.json", {}
+        )
+        if not isinstance(policy_robustness, dict):
+            policy_robustness = {}
         action_plan = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
         if not isinstance(action_plan, list):
             action_plan = []
+        evidence_bundles = _read_json(
+            app.state.output_root / "reports" / "reviewer_evidence_bundles.json", []
+        )
+        if not isinstance(evidence_bundles, list):
+            evidence_bundles = []
         return {
             "state": state,
             "queue": queue,
             "impact_cards": cards,
             "impact_policy_audit": policy_audit,
+            "reviewer_policy_robustness": policy_robustness,
             "reviewer_action_plan": action_plan,
+            "reviewer_evidence_bundles": evidence_bundles,
         }
 
     @app.get("/")
@@ -293,7 +313,9 @@ def create_app(
             "dashboard": "/dashboard",
             "impact_cards": "/api/impact-cards",
             "impact_policy_audit": "/api/impact-policy-audit",
+            "reviewer_policy_robustness": "/api/reviewer-policy-robustness",
             "reviewer_action_plan": "/api/reviewer-action-plan",
+            "reviewer_evidence_bundles": "/api/reviewer-evidence-bundles",
             "agent_reviewer_brief": "/api/agent/reviewer-brief",
             "ops": "/api/ops-metrics",
             "openapi": "/docs",
@@ -310,7 +332,16 @@ def create_app(
             "public_deploy_decision": state.get("public_deploy_decision", "UNKNOWN"),
             "impact_card_rows": state.get("metrics", {}).get("impact_card_rows", 0),
             "impact_policy_audit_rows": state.get("metrics", {}).get("impact_policy_audit_rows", 0),
+            "reviewer_policy_robustness_rows": state.get("metrics", {}).get(
+                "reviewer_policy_robustness_rows", 0
+            ),
             "reviewer_action_plan_rows": state.get("metrics", {}).get("reviewer_action_plan_rows", 0),
+            "reviewer_evidence_bundle_rows": state.get("metrics", {}).get(
+                "reviewer_evidence_bundle_rows", 0
+            ),
+            "reviewer_evidence_fresh_rows": state.get("metrics", {}).get(
+                "reviewer_evidence_fresh_rows", 0
+            ),
             "queue": queue_summary(app.state.output_root),
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
@@ -359,6 +390,54 @@ def create_app(
             items = []
         if decision:
             items = [item for item in items if item.get("reviewer_decision") == decision]
+        return {"count": len(items), "items": items}
+
+    @app.get("/api/reviewer-policy-robustness")
+    def reviewer_policy_robustness(
+        scenario: str | None = None,
+        policy: str | None = None,
+    ) -> dict[str, Any]:
+        ensure_ready()
+        payload = _read_json(
+            app.state.output_root / "reports" / "reviewer_policy_robustness.json", {}
+        )
+        if not isinstance(payload, dict):
+            payload = {}
+        items = payload.get("rows", [])
+        if not isinstance(items, list):
+            items = []
+        if scenario:
+            items = [item for item in items if item.get("scenario") == scenario]
+        if policy:
+            items = [item for item in items if item.get("policy") == policy]
+        return {
+            "count": len(items),
+            "method": payload.get("method", {}),
+            "summary": payload.get("summary", {}),
+            "items": items,
+        }
+
+    @app.get("/api/reviewer-evidence-bundles")
+    def reviewer_evidence_bundles(
+        freshness_status: str | None = None,
+        evidence_lock_status: str | None = None,
+    ) -> dict[str, Any]:
+        ensure_ready()
+        items = _read_json(
+            app.state.output_root / "reports" / "reviewer_evidence_bundles.json", []
+        )
+        if not isinstance(items, list):
+            items = []
+        if freshness_status:
+            items = [
+                item for item in items if item.get("freshness_status") == freshness_status
+            ]
+        if evidence_lock_status:
+            items = [
+                item
+                for item in items
+                if item.get("evidence_lock_status") == evidence_lock_status
+            ]
         return {"count": len(items), "items": items}
 
     @app.post("/api/review-queue/{control_id}/decision")
@@ -431,7 +510,9 @@ def create_app(
         summary = queue_summary(app.state.output_root)
         cards = sources["impact_cards"]
         policy_audit = sources["impact_policy_audit"]
+        policy_robustness = sources["reviewer_policy_robustness"]
         action_plan = sources["reviewer_action_plan"]
+        evidence_bundles = sources["reviewer_evidence_bundles"]
         ops = ops_metrics()
         agent_brief = build_reviewer_brief(
             state=state,
@@ -450,7 +531,9 @@ def create_app(
                 ops=ops,
                 impact_cards=cards,
                 impact_policy_audit=policy_audit,
+                reviewer_policy_robustness=policy_robustness,
                 reviewer_action_plan=action_plan,
+                reviewer_evidence_bundles=evidence_bundles,
                 agent_brief=agent_brief,
             )
         )

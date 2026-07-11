@@ -752,8 +752,21 @@ DISPLAY_LABELS = {
     "guarded_all_review": "전량 검토 후 로컬 근거",
     "source_order_capacity": "원천 순서 검토",
     "impact_guarded_capacity": "영향 우선 검토",
+    "confidence_weighted_guarded_capacity": "Confidence 조정 안전 검토",
+    "baseline": "기준 입력",
+    "unit_estimate_jitter": "후보 효과 변동",
+    "confidence_stress": "Confidence 하락",
+    "top_candidate_dropout": "상위 source 누락",
     "approve_local_review_only": "로컬 검토 승인",
     "approve_for_private_demo": "비공개 시연 승인",
+    "fresh": "최신",
+    "stale": "기한 초과",
+    "missing_timestamp": "시각 없음",
+    "future_timestamp": "미래 시각 오류",
+    "locked_fresh": "최신 근거 잠금",
+    "blocked_stale": "오래된 근거 차단",
+    "blocked_missing_timestamp": "시각 없는 근거 차단",
+    "blocked_future_timestamp": "미래 시각 근거 차단",
     "deployment_no_go": "배포 보류",
     "high_uncertainty_review": "불확실성 높음",
     "unsafe_write_action": "쓰기 위험",
@@ -787,6 +800,7 @@ ARTIFACT_LABELS = {
     "impact_cards": "따릉이 후보 조치 JSON",
     "impact_policy_audit": "영향 정책 비교 JSON",
     "reviewer_action_plan": "검토 실행 계획 JSON",
+    "reviewer_evidence_bundles": "심의 근거 패킷 JSON",
     "dashboard": "대시보드 HTML",
     "sqlite_database": "승인 이력 SQLite",
     "ops_metrics_snapshot": "운영 상태 스냅샷",
@@ -1390,6 +1404,26 @@ def _render_policy_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
     return rendered or [_empty_row(5, "영향 정책 비교 산출물이 없습니다.")]
 
 
+def _render_robustness_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
+    guarded = [
+        row
+        for row in rows
+        if row.get("policy") == "confidence_weighted_guarded_capacity"
+    ]
+    rendered = []
+    for item in guarded[:limit]:
+        rendered.append(
+            "<tr>"
+            f"<td>{_id_cell(_display(item.get('scenario', '')), '실현 성과가 아닌 deterministic ordering stress scenario입니다.')}</td>"
+            f"<td>{_escape(item.get('review_capacity', ''))}</td>"
+            f"<td>{_escape(item.get('confidence_adjusted_units', ''))}</td>"
+            f"<td>{_escape(item.get('oracle_regret_units', ''))}</td>"
+            f"<td>{_escape(item.get('selection_stability_jaccard', ''))}</td>"
+            "</tr>"
+        )
+    return rendered or [_empty_row(5, "Reviewer policy robustness 산출물이 없습니다.")]
+
+
 def _action_title(item: dict[str, Any]) -> str:
     station = str(item.get("station_name") or "대상 대여소").strip()
     action = _display(item.get("recommended_action", "monitor"))
@@ -1409,6 +1443,31 @@ def _render_action_plan_rows(rows: list[dict[str, Any]], limit: int) -> list[str
             "</tr>"
         )
     return rendered or [_empty_row(4, "검토 실행 계획 산출물이 없습니다.")]
+
+
+def _evidence_bundle_title(item: dict[str, Any]) -> str:
+    station = str(item.get("station_name") or "대상 대여소").strip()
+    action = _display(item.get("recommended_action", "monitor"))
+    units = item.get("candidate_units_addressed", "")
+    return f"{station}: {action} {units}대 근거"
+
+
+def _render_evidence_bundle_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
+    rendered = []
+    for item in rows[:limit]:
+        fingerprint = str(item.get("evidence_fingerprint_sha256", ""))
+        fingerprint_note = f"SHA-256 {fingerprint[:12]}…" if fingerprint else "fingerprint 없음"
+        source_age = item.get("source_age_hours")
+        age_label = "확인 불가" if source_age is None else f"{source_age}시간"
+        rendered.append(
+            "<tr>"
+            f"<td>{_id_cell(_evidence_bundle_title(item), fingerprint_note)}</td>"
+            f"<td>{_pill(item.get('freshness_status', ''))}<span class=\"cell-note\">{_escape(age_label)}</span></td>"
+            f"<td>{_pill(item.get('evidence_lock_status', ''))}</td>"
+            f"<td>{_pill(item.get('reviewer_decision', ''))}</td>"
+            "</tr>"
+        )
+    return rendered or [_empty_row(4, "사용 가능한 심의 근거 패킷이 없습니다.")]
 
 
 def _render_queue_rows(
@@ -1486,7 +1545,9 @@ def render_dashboard(
     queue: list[dict[str, Any]],
     impact_cards: list[dict[str, Any]],
     impact_policy_audit: list[dict[str, Any]] | None = None,
+    reviewer_policy_robustness: dict[str, Any] | None = None,
     reviewer_action_plan: list[dict[str, Any]] | None = None,
+    reviewer_evidence_bundles: list[dict[str, Any]] | None = None,
     agent_brief: dict[str, Any] | None = None,
     history: list[dict[str, Any]] | None = None,
     summary: dict[str, Any] | None = None,
@@ -1498,7 +1559,9 @@ def render_dashboard(
 
     history = history or []
     impact_policy_audit = impact_policy_audit or []
+    reviewer_policy_robustness = reviewer_policy_robustness or {}
     reviewer_action_plan = reviewer_action_plan or []
+    reviewer_evidence_bundles = reviewer_evidence_bundles or []
     summary = summary or {}
     ops = ops or {}
     metrics = state.get("metrics", {})
@@ -1513,6 +1576,9 @@ def render_dashboard(
     candidate_units = metrics.get("impact_candidate_units_addressed", 0)
     blocked_units = metrics.get("impact_public_claim_blocked_units", 0)
     action_plan_units = metrics.get("reviewer_action_plan_candidate_units", 0)
+    fresh_bundle_rows = metrics.get("reviewer_evidence_fresh_rows", 0)
+    robustness_summary = reviewer_policy_robustness.get("summary", {})
+    robustness_rows = reviewer_policy_robustness.get("rows", [])
     p0_pending = _priority_count(queue, "P0")
     release_label = _release_label(public_deploy)
 
@@ -1526,6 +1592,18 @@ def render_dashboard(
         _metric("따릉이 후보 조치", metrics.get("impact_card_rows", 0), f"예상 영향 {candidate_units} 단위"),
         _metric("차단한 공개 claim", blocked_units, "대외 성과 주장 금지 단위", "risk" if blocked_units else "good"),
         _metric("검토 계획", len(reviewer_action_plan), f"상위 계획 {action_plan_units} 단위"),
+        _metric(
+            "Stress 우위율",
+            f"{_as_float(robustness_summary.get('guarded_dominance_rate')):.0%}",
+            f"선택 안정성 {_as_float(robustness_summary.get('guarded_mean_selection_stability_jaccard')):.2f}",
+            "good" if robustness_rows else "risk",
+        ),
+        _metric(
+            "최신 근거 패킷",
+            f"{fresh_bundle_rows}/{len(reviewer_evidence_bundles)}",
+            "freshness SLA와 SHA-256 잠금",
+            "good" if reviewer_evidence_bundles and fresh_bundle_rows == len(reviewer_evidence_bundles) else "risk",
+        ),
         _metric("공개 배포", release_label, "외부 공개 가능 여부", "good" if public_deploy == "GO" else "risk"),
     ]
 
@@ -1600,7 +1678,9 @@ def render_dashboard(
               <a class="button" href="#impact-map">지도에서 보기</a>
               <a class="button" href="#impact-cards">따릉이 후보 조치 보기</a>
               <a class="button" href="#policy-audit">정책 비교 보기</a>
+              <a class="button" href="#policy-robustness">Stress test 보기</a>
               <a class="button" href="#action-plan">검토 계획 보기</a>
+              <a class="button" href="#evidence-bundles">근거 패킷 보기</a>
               <a class="button" href="#blockers">보류 이유 보기</a>
             </nav>
           </div>
@@ -1707,6 +1787,24 @@ def render_dashboard(
         )}
       </section>
 
+      <section class="section" id="policy-robustness">
+        <div class="section__header">
+          <div>
+            <h2>Reviewer policy robustness</h2>
+            <p class="section__intro">
+              후보 효과 jitter, confidence 하락, 상위 source 누락과 검토 용량 변화에서
+              confidence-weighted guarded ordering의 regret와 선택 안정성을 비교합니다.
+              이 값은 실현 효과나 인과 추정치가 아닙니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(len(robustness_rows), f"{len(robustness_rows)}개 비교")}</div>
+        </div>
+        {_table(
+            ["Stress scenario", "검토 용량", "Confidence 조정 단위", "Oracle regret", "선택 안정성"],
+            _render_robustness_rows(robustness_rows, 12),
+        )}
+      </section>
+
       <section class="section" id="action-plan">
         <div class="section__header">
           <div>
@@ -1721,6 +1819,23 @@ def render_dashboard(
         {_table(
             ["먼저 볼 후보", "긴급도", "누적 후보 단위", "권장 결정"],
             _render_action_plan_rows(reviewer_action_plan, 12),
+        )}
+      </section>
+
+      <section class="section" id="evidence-bundles">
+        <div class="section__header">
+          <div>
+            <h2>심의 근거 패킷</h2>
+            <p class="section__intro">
+              Impact card와 검토 계획을 하나의 근거 계약으로 묶고 관측 시각, freshness SLA,
+              SHA-256 fingerprint를 함께 확인합니다. 최신성 잠금에 실패하면 자동으로 근거 요청 상태가 됩니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(len(reviewer_evidence_bundles), f"{len(reviewer_evidence_bundles)}건")}</div>
+        </div>
+        {_table(
+            ["검토 근거", "최신성", "근거 잠금", "권장 결정"],
+            _render_evidence_bundle_rows(reviewer_evidence_bundles, 12),
         )}
       </section>
 

@@ -34,7 +34,9 @@
 | 지도 | 따릉이 후보 조치 위치와 fallback 번호 지도 | 좌표 기반 의사결정 |
 | Impact card | 권고 action, 후보 이동량, confidence, public-claim blocker | ML output의 business translation |
 | Policy audit | unsafe publish와 guarded policy 비교 | 미검증 성과 claim 차단 |
+| Policy robustness | 4 scenarios × 3 capacities × 3 policies | uncertainty 하 reviewer ranking 안정성 |
 | Action plan | 검토자가 먼저 볼 후보와 local-only 판단 | 제한된 검토 용량 반영 |
+| Evidence bundle | source age, freshness SLA, SHA-256 lock | stale/content drift 근거 차단 |
 | Review queue | 사람이 무엇을 검토해야 하는지 설명 | human-in-the-loop workflow |
 | Approval API | reviewer/admin token 기반 approve/reject/needs_more_evidence | 안전한 write boundary |
 | Deployment readiness | local/container/hosted/public `GO`/`NO_GO` 분리 | 배포 판단과 책임 경계 |
@@ -52,7 +54,9 @@
 | Review queue | 54건 |
 | Impact cards | 12건 |
 | Policy audit | 8개 policy/capacity row |
+| Policy robustness | 36개 comparison, safety dominance 100%, worst-case regret 0.0 |
 | Reviewer action plan | 8건 |
+| Reviewer evidence bundles | 8건, freshness/hash 계약 |
 | CI | GitHub Actions 통과 |
 
 서울 따릉이 validation은 `READY`지만, public deploy readiness가 아직 `GO`가 아니므로 impact card는 성과 claim이 아니라 local review evidence다.

@@ -4,7 +4,7 @@
 
 ## 범위
 
-이 문서는 `decisionops-control-tower`의 현재 데이터 흐름을 설명한다. 범위는 Stage 1/2 산출물을 FastAPI, dashboard, RBAC-lite approval write, SQLite persistence, monitoring snapshot, deployment readiness decision을 가진 local product-quality control surface로 바꾸는 과정이다.
+이 문서는 `decisionops-control-tower`의 현재 데이터 흐름을 설명한다. 범위는 Stage 1/2 산출물을 FastAPI, dashboard, freshness-gated evidence bundle, RBAC-lite approval write, SQLite persistence, monitoring snapshot, deployment readiness decision을 가진 local product-quality control surface로 바꾸는 과정이다.
 
 핵심 안전 속성은 Control Tower가 reviewer decision을 local에 저장할 수는 있지만, upstream ML/agent artifact를 변경하거나 현실 action을 dispatch하지 않는다는 점이다.
 
@@ -45,6 +45,8 @@ flowchart LR
     P16["P1.6 RBAC-lite approval handler"]
     P17["P1.7 structured logging과 ops metric"]
     P18["P1.8 deployment readiness writer"]
+    P19["P1.9 evidence freshness/integrity gate"]
+    P20["P1.10 reviewer policy robustness"]
 
     D11[("D1.1 control_state.json")]
     D12[("D1.2 control_review_queue.csv")]
@@ -53,6 +55,8 @@ flowchart LR
     D15[("D1.5 control_tower.sqlite")]
     D16[("D1.6 ops_metrics_snapshot/history")]
     D17[("D1.7 deployment_readiness artifact")]
+    D18[("D1.8 reviewer_evidence_bundles")]
+    D19[("D1.9 reviewer_policy_robustness")]
 
     E11["Stage 1 산출물"]
     E12["Stage 2 산출물"]
@@ -71,6 +75,10 @@ flowchart LR
     D11 --> P18
     D12 --> P18
     D16 --> P18 --> D17
+    P11 --> P19 --> D18
+    P11 --> P20 --> D19
+    D18 --> P14
+    D19 --> P14
     D14 --> E14
     D17 --> E14
 ```
@@ -86,6 +94,8 @@ flowchart LR
 | D1.5 `control_tower.sqlite` | approval/rejection history와 audit record | RBAC-lite approval handler | API history endpoint, dashboard |
 | D1.6 ops metric snapshot/history | queue status, freshness, health, API/runtime metric | monitoring writer | deployment readiness, dashboard/API |
 | D1.7 deployment readiness artifact | local/container/hosted/public decision과 blocker | deployment readiness writer | 검토자, portfolio runbook |
+| D1.8 reviewer evidence bundles | impact/action join, source age, SLA, SHA-256 fingerprint | evidence gate | API, dashboard, deployment readiness |
+| D1.9 reviewer policy robustness | 4 stress scenarios, 3 capacities, 3 policies의 regret/stability | robustness evaluator | API, dashboard, final report |
 
 ## 흐름 목록
 
@@ -100,6 +110,8 @@ flowchart LR
 | F7 | approval handler | SQLite store | local audit history | upstream mutation 또는 external dispatch 없음 |
 | F8 | API/runtime | ops metric | health, queue, freshness, request log | monitoring snapshot/history는 generated artifact |
 | F9 | control state/ops metric | deployment readiness writer | local/container/hosted/public readiness | upstream readiness와 hardening 전 public deploy는 `NO_GO` |
+| F10 | impact/action artifact | evidence gate | source age, freshness, fingerprint, claim boundary | non-fresh evidence는 `needs_more_evidence`로 차단 |
+| F11 | impact cards | robustness evaluator | capacity, unit jitter, confidence stress, source dropout | safety-first dominance와 zero public-claim violation 검증 |
 
 ## 신뢰/안전 경계
 

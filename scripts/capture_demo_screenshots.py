@@ -105,7 +105,17 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
         capture("dashboard_full_page", "/dashboard", full_page=True)
         capture("impact_map", "/dashboard#impact-map", "#impact-map")
         capture("policy_audit", "/dashboard#policy-audit", "#policy-audit")
+        capture(
+            "reviewer_policy_robustness",
+            "/dashboard#policy-robustness",
+            "#policy-robustness",
+        )
         capture("reviewer_action_plan", "/dashboard#action-plan", "#action-plan")
+        capture(
+            "reviewer_evidence_bundles",
+            "/dashboard#evidence-bundles",
+            "#evidence-bundles",
+        )
         capture("reviewer_queue", "/dashboard#reviewer-queue", "#reviewer-queue")
         capture("openapi_docs", "/docs", full_page=False)
         context.close()
