@@ -37,6 +37,7 @@
 | Policy robustness | 4 scenarios × 3 capacities × 3 policies | uncertainty 하 reviewer ranking 안정성 |
 | Action plan | 검토자가 먼저 볼 후보와 local-only 판단 | 제한된 검토 용량 반영 |
 | Evidence bundle | source age, freshness SLA, SHA-256 lock | stale/content drift 근거 차단 |
+| Audit integrity | chained decision hash와 queue-state replay | 승인 이력 변조·불일치 탐지 |
 | Review queue | 사람이 무엇을 검토해야 하는지 설명 | human-in-the-loop workflow |
 | Approval API | reviewer/admin token 기반 approve/reject/needs_more_evidence | 안전한 write boundary |
 | Deployment readiness | local/container/hosted/public `GO`/`NO_GO` 분리 | 배포 판단과 책임 경계 |
@@ -57,6 +58,7 @@
 | Policy robustness | 36개 comparison, safety dominance 100%, worst-case regret 0.0 |
 | Reviewer action plan | 8건 |
 | Reviewer evidence bundles | 8건, freshness/hash 계약 |
+| Approval audit integrity | `PASS`, hash chain + state replay |
 | CI | GitHub Actions 통과 |
 
 서울 따릉이 validation은 `READY`지만, public deploy readiness가 아직 `GO`가 아니므로 impact card는 성과 claim이 아니라 local review evidence다.
@@ -67,7 +69,8 @@
 
 ## 의사결정 경계
 
-- Approval POST는 local SQLite에만 기록한다.
+- Approval POST는 local SQLite에만 기록하며 각 event를 SHA-256 chain으로 연결한다.
+- Decision history를 replay한 state가 현재 queue와 다르면 deployment gate를 차단한다.
 - 외부 현장 조치, 실제 자전거 재배치, upstream artifact mutation은 하지 않는다.
 - token 값과 `.env` 값은 report, dashboard, log에 출력하지 않는다.
 - public deploy는 validation과 hosted hardening이 끝나기 전까지 `NO_GO`다.

@@ -14,8 +14,9 @@
 6. **검토 실행 계획**: 검토 시간이 제한될 때 먼저 볼 local-only 후보를 보여준다.
 7. **심의 근거 패킷**: source age, 3시간 SLA, SHA-256 lock을 확인한다.
 8. **검토 대기열**: 사람이 무엇을 검토해야 하는지, 내부 ID 대신 사람이 읽는 문맥으로 설명한다.
-9. **OpenAPI**: approval write endpoint와 health/ops/impact/agent endpoint를 보여준다.
-10. **Private demo verifier**: token 값 없이 인증 경계가 검증되는 것을 보여준다.
+9. **승인 감사 무결성**: chained hash와 queue-state replay가 함께 `PASS`인지 확인한다.
+10. **OpenAPI**: approval write endpoint와 health/ops/impact/agent endpoint를 보여준다.
+11. **Private demo verifier**: token 값 없이 인증 경계가 검증되는 것을 보여준다.
 
 ## 캡처
 
@@ -28,6 +29,7 @@
 | Policy robustness | ![Policy robustness](assets/demo/reviewer_policy_robustness_section.png) | deterministic stress scenario의 safety dominance와 regret |
 | 심의 근거 패킷 | ![Evidence bundles](assets/demo/reviewer_evidence_bundles_section.png) | source age, freshness SLA, SHA-256 lock 확인 |
 | 검토 대기열 | ![Reviewer queue](assets/demo/reviewer_queue.png) | 사람이 읽는 검토 문맥과 approval controls |
+| 승인 감사 무결성 | ![Approval audit integrity](assets/demo/approval_audit_integrity_section.png) | decision hash chain과 queue-state replay verdict |
 | OpenAPI | ![OpenAPI docs](assets/demo/openapi_docs.png) | API product surface |
 
 캡처 메타데이터는 [assets/demo/demo_screenshot_manifest.json](assets/demo/demo_screenshot_manifest.json)에 남긴다.
@@ -58,6 +60,7 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 - “reviewer/admin token 없이는 approval write가 되지 않는다.”
 - “3시간 SLA를 넘기거나 timestamp가 잘못된 근거는 다시 생성하기 전까지 승인 후보가 아니다.”
 - “Robustness audit은 실현 효과가 아니라 ordering stress test이며, invalid evidence를 먼저 줄이고 동률에서 confidence-adjusted units를 비교한다.”
+- “승인 이력은 이전 event hash와 연결하고 replay 결과를 현재 queue와 대조해 silent mutation을 탐지한다.”
 - “public deploy와 private demo를 분리해, 포트폴리오에서도 책임 있는 배포 판단을 유지한다.”
 
 ## 현재 한계
@@ -65,3 +68,4 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 - 캡처는 local/private demo 기준이다.
 - OpenStreetMap tile 네트워크가 차단되면 지도 배경 로딩이 제한될 수 있지만 후보 번호와 evidence table은 유지된다.
 - Public deploy readiness가 `GO`가 되기 전까지 verified external impact claim은 하지 않는다.
+- Approval hash chain은 local tamper evidence이며 서명된 외부 attestation은 아니다.

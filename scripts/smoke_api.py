@@ -52,6 +52,10 @@ def _smoke_basic(args: argparse.Namespace) -> None:
     action_plan.raise_for_status()
     evidence_bundles = client.get("/api/reviewer-evidence-bundles")
     evidence_bundles.raise_for_status()
+    audit_integrity = client.get("/api/approval-audit-integrity")
+    audit_integrity.raise_for_status()
+    if audit_integrity.json()["status"] != "pass":
+        raise AssertionError("approval audit integrity smoke failed")
     agent = client.get("/api/agent/reviewer-brief")
     agent.raise_for_status()
     first_impact = impact.json()["items"][0]
@@ -73,6 +77,7 @@ def _smoke_basic(args: argparse.Namespace) -> None:
         f"robustness_rows={robustness.json()['count']}, "
         f"action_plan_rows={action_plan.json()['count']}, "
         f"evidence_bundles={evidence_bundles.json()['count']}, "
+        f"audit_integrity={audit_integrity.json()['status']}, "
         f"agent_mode={agent.json()['mode']}, "
         f"auth_required={payload['auth_required']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"

@@ -73,3 +73,49 @@ def test_initialize_store_tolerates_duplicate_review_context_migration(tmp_path,
 
     assert result["queue_rows"] == 1
     assert store.list_queue(tmp_path)[0]["review_context"] == "요청: 사람 검토"
+
+
+def test_approval_history_chain_and_replay_pass_after_multiple_decisions(tmp_path):
+    _write_queue_csv(tmp_path)
+    store.initialize_store(tmp_path)
+
+    store.record_decision(tmp_path, "CTRL-0001", "needs_more_evidence", "reviewer_a", "보강")
+    store.record_decision(tmp_path, "CTRL-0001", "approve", "reviewer_b", "확인")
+
+    integrity = store.verify_audit_integrity(tmp_path)
+    history = store.list_history(tmp_path)
+
+    assert integrity["status"] == "pass"
+    assert integrity["event_count"] == 2
+    assert integrity["chain_valid"] is True
+    assert integrity["replay_valid"] is True
+    assert history[0]["previous_event_hash"] == history[1]["event_hash"]
+
+
+def test_approval_history_chain_detects_content_tampering(tmp_path):
+    _write_queue_csv(tmp_path)
+    store.record_decision(tmp_path, "CTRL-0001", "approve", "reviewer_a", "원본")
+    with sqlite3.connect(store.database_path(tmp_path)) as conn:
+        conn.execute("UPDATE approval_history SET note = '변조' WHERE id = 1")
+
+    integrity = store.verify_audit_integrity(tmp_path)
+
+    assert integrity["status"] == "fail"
+    assert integrity["chain_valid"] is False
+    assert integrity["first_invalid_event_id"] == 1
+
+
+def test_approval_history_replay_detects_queue_state_tampering(tmp_path):
+    _write_queue_csv(tmp_path)
+    store.record_decision(tmp_path, "CTRL-0001", "reject", "reviewer_a", "반려")
+    with sqlite3.connect(store.database_path(tmp_path)) as conn:
+        conn.execute(
+            "UPDATE control_queue SET approval_state = 'approved' WHERE control_id = 'CTRL-0001'"
+        )
+
+    integrity = store.verify_audit_integrity(tmp_path)
+
+    assert integrity["status"] == "fail"
+    assert integrity["chain_valid"] is True
+    assert integrity["replay_valid"] is False
+    assert integrity["replay_mismatch_count"] == 1

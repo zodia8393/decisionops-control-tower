@@ -31,6 +31,7 @@ scripts/run_server.sh
 - Reviewer policy robustness: `http://127.0.0.1:8093/api/reviewer-policy-robustness`
 - Reviewer action plan: `http://127.0.0.1:8093/api/reviewer-action-plan`
 - Reviewer evidence bundles: `http://127.0.0.1:8093/api/reviewer-evidence-bundles`
+- Approval audit integrity: `http://127.0.0.1:8093/api/approval-audit-integrity`
 
 쓰기 인증 모드:
 
@@ -120,11 +121,14 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 - `/api/reviewer-policy-robustness`가 36개 deterministic stress row, safety dominance, regret, selection stability를 반환합니다.
 - `/api/reviewer-action-plan`이 제한된 검토 용량에서 먼저 볼 local-only 후보를 반환합니다.
 - `/api/reviewer-evidence-bundles`가 source age, freshness status, lock status, 64자 SHA-256 fingerprint를 반환합니다.
+- `/api/approval-audit-integrity`가 decision hash chain과 queue-state replay 결과를 반환합니다.
+- history payload 변조 또는 queue state mismatch test가 integrity `fail`과 deployment blocker를 재현합니다.
 - stale/missing/future timestamp bundle은 `needs_more_evidence`로 차단됩니다.
 - `scripts/write_monitoring_snapshot.py`가 latest snapshot과 history JSONL을 생성합니다.
 - `scripts/write_deployment_readiness.py`가 local/container/hosted/public deploy decision을 JSON/Markdown으로 생성합니다.
 - Docker/compose smoke가 image build, container startup, HTTP endpoints, healthcheck를 확인합니다.
 - `control_tower.sqlite`가 local approval history store로 생성됩니다.
+- `reports/approval_audit_integrity.json`이 chain/replay verdict를 보존합니다.
 - 좌표 누락/범위 오류는 `0.0`으로 숨기지 않고 `station_lat/station_lon=null`, `coordinate_status`로 표시됩니다.
 - README와 보고서가 실제 실행 결과 기준으로 갱신됩니다.
 - 일요일 완료 기준에서는 `--stage sunday` validator와 quality gate를 통과하거나 `docs/research_gap_report.md`에 미달 항목이 남아 있습니다.

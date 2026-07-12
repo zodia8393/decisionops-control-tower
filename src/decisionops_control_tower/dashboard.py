@@ -803,6 +803,7 @@ ARTIFACT_LABELS = {
     "reviewer_evidence_bundles": "심의 근거 패킷 JSON",
     "dashboard": "대시보드 HTML",
     "sqlite_database": "승인 이력 SQLite",
+    "approval_audit_integrity": "승인 감사 무결성 JSON",
     "ops_metrics_snapshot": "운영 상태 스냅샷",
     "ops_metrics_history": "운영 상태 이력",
 }
@@ -1524,6 +1525,27 @@ def _render_history_rows(history: list[dict[str, Any]], limit: int) -> list[str]
     return rows or [_empty_row(4, "기록된 승인 이력이 없습니다.")]
 
 
+def _render_audit_integrity_rows(integrity: dict[str, Any]) -> list[str]:
+    checks = [
+        ("Hash chain", integrity.get("chain_valid"), "결정 payload와 이전 event hash 연결"),
+        ("State replay", integrity.get("replay_valid"), "마지막 결정을 현재 queue 상태와 대조"),
+        ("Audit events", integrity.get("event_count", 0), "검증한 reviewer 결정 수"),
+        (
+            "Replay mismatches",
+            integrity.get("replay_mismatch_count", 0),
+            "0이 아니면 queue state 변조 또는 불일치",
+        ),
+    ]
+    return [
+        "<tr>"
+        f"<td>{_escape(name)}</td>"
+        f"<td>{_pill(value)}</td>"
+        f"<td>{_escape(description)}</td>"
+        "</tr>"
+        for name, value, description in checks
+    ]
+
+
 def _render_artifact_rows(artifacts: dict[str, Any]) -> list[str]:
     rows = []
     for name, item in artifacts.items():
@@ -1548,6 +1570,7 @@ def render_dashboard(
     reviewer_policy_robustness: dict[str, Any] | None = None,
     reviewer_action_plan: list[dict[str, Any]] | None = None,
     reviewer_evidence_bundles: list[dict[str, Any]] | None = None,
+    audit_integrity: dict[str, Any] | None = None,
     agent_brief: dict[str, Any] | None = None,
     history: list[dict[str, Any]] | None = None,
     summary: dict[str, Any] | None = None,
@@ -1562,6 +1585,7 @@ def render_dashboard(
     reviewer_policy_robustness = reviewer_policy_robustness or {}
     reviewer_action_plan = reviewer_action_plan or []
     reviewer_evidence_bundles = reviewer_evidence_bundles or []
+    audit_integrity = audit_integrity or {}
     summary = summary or {}
     ops = ops or {}
     metrics = state.get("metrics", {})
@@ -1581,6 +1605,7 @@ def render_dashboard(
     robustness_rows = reviewer_policy_robustness.get("rows", [])
     p0_pending = _priority_count(queue, "P0")
     release_label = _release_label(public_deploy)
+    audit_status = str(audit_integrity.get("status", "unknown")).upper()
 
     action_header = ["무엇을 검토하나", "긴급도", "처리 상태", "확인 필요 이유"]
     if include_actions:
@@ -1603,6 +1628,12 @@ def render_dashboard(
             f"{fresh_bundle_rows}/{len(reviewer_evidence_bundles)}",
             "freshness SLA와 SHA-256 잠금",
             "good" if reviewer_evidence_bundles and fresh_bundle_rows == len(reviewer_evidence_bundles) else "risk",
+        ),
+        _metric(
+            "감사 무결성",
+            audit_status,
+            f"chain/replay · {audit_integrity.get('event_count', 0)} events",
+            "good" if audit_status == "PASS" else "risk",
         ),
         _metric("공개 배포", release_label, "외부 공개 가능 여부", "good" if public_deploy == "GO" else "risk"),
     ]
@@ -1681,6 +1712,7 @@ def render_dashboard(
               <a class="button" href="#policy-robustness">Stress test 보기</a>
               <a class="button" href="#action-plan">검토 계획 보기</a>
               <a class="button" href="#evidence-bundles">근거 패킷 보기</a>
+              <a class="button" href="#approval-audit-integrity">감사 무결성 보기</a>
               <a class="button" href="#blockers">보류 이유 보기</a>
             </nav>
           </div>
@@ -1862,6 +1894,20 @@ def render_dashboard(
           </div>
         </div>
         {_table(["시간", "검토 기록", "결정", "검토자"], _render_history_rows(history, 12))}
+      </section>
+
+      <section class="section" id="approval-audit-integrity">
+        <div class="section__header">
+          <div>
+            <h2>승인 감사 무결성</h2>
+            <p class="section__intro">
+              각 reviewer 결정을 이전 event hash에 연결하고, 이력을 replay해 현재 queue 상태와 대조합니다.
+              이는 local tamper evidence이며 전자서명이나 외부 공증은 아닙니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(audit_status)}</div>
+        </div>
+        {_table(["검증", "결과", "의미"], _render_audit_integrity_rows(audit_integrity))}
       </section>
 
       <section class="section" id="operations">

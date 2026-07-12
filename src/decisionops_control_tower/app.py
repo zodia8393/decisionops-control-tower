@@ -29,6 +29,7 @@ from decisionops_control_tower.store import (
     list_queue,
     queue_summary,
     record_decision,
+    verify_audit_integrity,
 )
 
 
@@ -120,6 +121,7 @@ def _needs_pipeline_refresh(output_root: Path) -> bool:
         output_root / "reports" / "reviewer_action_plan.json",
         output_root / "reports" / "reviewer_evidence_bundles.json",
         output_root / "reports" / "agent_reviewer_brief.json",
+        output_root / "reports" / "approval_audit_integrity.json",
         output_root / "reports" / "api_contract.json",
         output_root / "dashboard" / "index.html",
     ]
@@ -259,7 +261,11 @@ def create_app(
             ),
             "dashboard": _artifact_status(app.state.output_root / "dashboard" / "index.html"),
             "sqlite_database": _artifact_status(database_path(app.state.output_root)),
+            "approval_audit_integrity": _artifact_status(
+                app.state.output_root / "reports" / "approval_audit_integrity.json"
+            ),
         }
+        audit_integrity = verify_audit_integrity(app.state.output_root)
         return {
             "status": "ok",
             "uptime_seconds": round(time.time() - app.state.started_at, 3),
@@ -269,6 +275,7 @@ def create_app(
             "public_deploy_decision": state.get("public_deploy_decision", "UNKNOWN"),
             "demo_mode_ready": bool(state.get("demo_mode_ready")),
             "queue": queue_summary(app.state.output_root),
+            "approval_audit_integrity": audit_integrity,
             "artifacts": artifacts,
         }
 
@@ -318,6 +325,7 @@ def create_app(
             "reviewer_evidence_bundles": "/api/reviewer-evidence-bundles",
             "agent_reviewer_brief": "/api/agent/reviewer-brief",
             "ops": "/api/ops-metrics",
+            "approval_audit_integrity": "/api/approval-audit-integrity",
             "openapi": "/docs",
         }
 
@@ -343,6 +351,7 @@ def create_app(
                 "reviewer_evidence_fresh_rows", 0
             ),
             "queue": queue_summary(app.state.output_root),
+            "approval_audit_integrity": verify_audit_integrity(app.state.output_root),
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
             "database": str(database_path(app.state.output_root)),
@@ -468,6 +477,11 @@ def create_app(
         items = list_history(app.state.output_root, limit=safe_limit)
         return {"count": len(items), "items": items}
 
+    @app.get("/api/approval-audit-integrity")
+    def approval_audit_integrity() -> dict[str, Any]:
+        ensure_ready()
+        return verify_audit_integrity(app.state.output_root)
+
     @app.get("/api/ops-metrics")
     def read_ops_metrics() -> dict[str, Any]:
         ensure_ready()
@@ -514,6 +528,7 @@ def create_app(
         action_plan = sources["reviewer_action_plan"]
         evidence_bundles = sources["reviewer_evidence_bundles"]
         ops = ops_metrics()
+        audit_integrity = verify_audit_integrity(app.state.output_root)
         agent_brief = build_reviewer_brief(
             state=state,
             queue=queue,
@@ -534,6 +549,7 @@ def create_app(
                 reviewer_policy_robustness=policy_robustness,
                 reviewer_action_plan=action_plan,
                 reviewer_evidence_bundles=evidence_bundles,
+                audit_integrity=audit_integrity,
                 agent_brief=agent_brief,
             )
         )

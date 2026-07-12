@@ -18,6 +18,7 @@
 | Evidence bundles | source age, 3-hour SLA, SHA-256 fingerprint | stale 근거 차단·content drift 식별 |
 | Approval API | role token 기반 approve/reject/needs-more-evidence | local audit 기록 |
 | SQLite audit trail | `control_tower.sqlite` | 결정 이력 보존 |
+| Audit integrity | chained SHA-256 + deterministic replay | 이력·현재 queue 불일치 차단 |
 | Deployment gate | local/container/hosted/public 분리 | 공개 여부 `GO/NO_GO` |
 
 ## 핵심 수치
@@ -25,13 +26,14 @@
 | 항목 | 값 | 의미 |
 |---|---:|---|
 | Impact cards | 12 | 서울 따릉이 후보 조치 수 |
-| Candidate units | 803 | 검토 대상 후보 이동량 |
-| Unsupported claim avoided | 803 | 공개 claim으로 쓰지 않고 차단한 단위 |
+| Candidate units | 735 | 검토 대상 후보 이동량 |
+| Unsupported claim avoided | 735 | 공개 claim으로 쓰지 않고 차단한 단위 |
 | Reviewer action plan | 8 | 검토자가 먼저 볼 local-only 계획 |
 | Agent review notes | 8 | 상위 후보별 evidence-locked 검토 메모 |
 | Fresh evidence bundles | 8/8 | 최신성·content lock 계약을 통과한 심의 패킷 |
 | Robustness comparisons | 36 | 효과 jitter·confidence stress·source dropout 포함 |
 | Guarded safety dominance | 100% | invalid evidence를 먼저 줄이고 동률에서 조정 단위 비교 |
+| Audit integrity | `PASS` | reviewer history chain과 queue-state replay 통과 |
 | Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
 | Public deploy | `NO_GO` | 외부 공개 차단 상태 |
 
@@ -39,11 +41,13 @@
 
 운영 제품에서 중요한 것은 높은 점수보다 “지금 공개해도 되는가”입니다. 이 프로젝트는 후보 효과 단위를 계산하면서도, 검증 전 수치를 대외 성과로 말하지 못하게 막습니다.
 
-무검토 공개 기준선은 803단위의 unsupported claim을 만들 수 있습니다. Guarded policy는 같은 후보를 local reviewer evidence로만 보존합니다.
+무검토 공개 기준선은 735단위의 unsupported claim을 만들 수 있습니다. Guarded policy는 같은 후보를 local reviewer evidence로만 보존합니다.
 
 검증 상태가 `READY`여도 근거가 오래되면 같은 판단을 재사용하면 안 됩니다. 각 심의 패킷은 관측 시각과 3시간 SLA를 확인하고, source content가 달라지면 SHA-256 fingerprint도 바뀝니다.
 
 Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stress scenario에서 guarded policy는 source order보다 invalid evidence를 우선 줄였고, 안전성이 같을 때 confidence-adjusted 후보 단위를 유지하거나 높였습니다.
+
+입력 근거가 잠겨 있어도 최종 승인 이력이 바뀌면 의사결정 재현성이 깨집니다. 각 결정은 이전 event hash와 연결되고, 전체 이력을 replay한 결과가 현재 queue state와 다르면 local demo gate도 차단됩니다.
 
 ## 방법 선택 이유
 
@@ -55,6 +59,7 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 | Deterministic stress test | 용량·효과·confidence·source 누락에 대한 ranking 안정성 측정 | 단일 best-case 순위 |
 | Action plan | 제한된 검토 시간을 반영 | 전체 queue 나열 |
 | Freshness + fingerprint | 오래되거나 바뀐 근거를 식별 | artifact 존재 여부만 확인 |
+| Hash chain + replay | 결정 payload 변조와 queue-state 불일치 탐지 | 일반 timestamp 이력 |
 | `NO_GO` gate | 공개 배포와 demo를 분리 | 단일 ready flag |
 
 ## 대표 시각화
@@ -109,6 +114,7 @@ scripts/run_server.sh
 | Policy robustness | `http://127.0.0.1:8093/api/reviewer-policy-robustness` |
 | Action plan | `http://127.0.0.1:8093/api/reviewer-action-plan` |
 | Evidence bundles | `http://127.0.0.1:8093/api/reviewer-evidence-bundles` |
+| Audit integrity | `http://127.0.0.1:8093/api/approval-audit-integrity` |
 | AI reviewer brief | `http://127.0.0.1:8093/api/agent/reviewer-brief` |
 | Candidate review notes | `http://127.0.0.1:8093/api/agent/candidate/{candidate_id}/review-notes` |
 | Ops metrics | `http://127.0.0.1:8093/api/ops-metrics` |
@@ -124,6 +130,7 @@ scripts/run_server.sh
 | Policy robustness | `reports/reviewer_policy_robustness.json` | 36-row controlled stress comparison |
 | Action plan | `reports/reviewer_action_plan.json` | 검토 우선순위 |
 | Evidence bundles | `reports/reviewer_evidence_bundles.json` | 최신성·fingerprint가 잠긴 심의 근거 |
+| Audit integrity | `reports/approval_audit_integrity.json` | hash chain·queue replay 검증 결과 |
 | Agent brief | `reports/agent_reviewer_brief.json` | read-only 검토 요약 |
 | Candidate notes | `reports/agent_candidate_review_notes.json` | 후보별 evidence lock |
 | Dashboard | `dashboard/index.html` | reviewer 화면 |
@@ -157,6 +164,7 @@ PYTHONPATH=src python3 -m pytest -q
 scripts/run_all.sh
 PYTHONPATH=src scripts/verify_dashboard_ui.py
 curl -fsS http://127.0.0.1:8093/api/agent/reviewer-brief
+curl -fsS http://127.0.0.1:8093/api/approval-audit-integrity
 PYTHONPATH=src scripts/smoke_api.py --auth-smoke
 ```
 
@@ -191,6 +199,7 @@ scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 - 실제 자전거 재배치, 외부 dispatch, upstream artifact mutation은 하지 않습니다.
 - Public deploy는 upstream readiness와 hosted hardening 전까지 `NO_GO`입니다.
 - Evidence fingerprint는 source drift 탐지용이며 전자서명이나 외부 공증을 대체하지 않습니다.
+- Approval hash chain은 local tamper evidence이며 DB 밖의 서명된 anchor 또는 원격 attestation을 제공하지 않습니다.
 - Robustness audit은 reviewer ordering stress test이며 실현 효과나 인과효과 추정치가 아닙니다.
 - 좌표 누락 또는 서울 권역 밖 좌표는 `0.0`으로 숨기지 않고 `null`과 `coordinate_status`로 표시합니다.
 - `.env`, API key, token 값은 문서와 log에 출력하지 않습니다.

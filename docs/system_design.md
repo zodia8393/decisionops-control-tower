@@ -2,7 +2,7 @@
 
 ## Product Surface
 
-실행 surface는 `scripts/run_all.sh`가 제공하는 batch pipeline/CLI, FastAPI server, SQLite approval persistence, RBAC-lite write auth, structured JSON request logging, monitoring snapshot, deployment readiness gate, policy audit, reviewer action plan, freshness-gated evidence bundle, AI Reviewer Agent, reviewer dashboard입니다. Public deploy는 upstream readiness가 `GO`가 될 때까지 차단합니다.
+실행 surface는 `scripts/run_all.sh`가 제공하는 batch pipeline/CLI, FastAPI server, SQLite approval persistence, chained audit/replay verifier, RBAC-lite write auth, structured JSON request logging, monitoring snapshot, deployment readiness gate, policy audit, reviewer action plan, freshness-gated evidence bundle, AI Reviewer Agent, reviewer dashboard입니다. Public deploy는 upstream readiness가 `GO`가 될 때까지 차단합니다.
 
 AI Reviewer Agent는 `/api/agent/reviewer-brief`와 `/api/agent/candidate/{candidate_id}/review-notes`로 노출되는 read-only reviewer assistant입니다. Agent는 health/API/artifact를 근거로 요약과 다음 action을 만들지만 approval write, 현장 dispatch, `GO/NO_GO` 변경, 신규 효과 수치 생성은 하지 않습니다. LLM 미설정 또는 호출 실패 시 deterministic fallback brief를 반환합니다.
 
@@ -17,6 +17,7 @@ Stage 2 agentic workbench artifacts
   -> reviewer queue projection
   -> API contract and FastAPI endpoints
   -> SQLite approval store
+  -> SHA-256 event chain + deterministic queue-state replay
   -> RBAC-lite write auth and structured logs
   -> ops metrics snapshot/history
   -> deployment readiness gate
@@ -49,6 +50,7 @@ Stage 1 impact simulation artifacts
 - Reviewer policy robustness: `/api/reviewer-policy-robustness`, `reports/reviewer_policy_robustness.csv`, `reports/reviewer_policy_robustness.json`
 - Reviewer action plan: `/api/reviewer-action-plan`, `reports/reviewer_action_plan.csv`, `reports/reviewer_action_plan.json`
 - Reviewer evidence bundles: `/api/reviewer-evidence-bundles`, `reports/reviewer_evidence_bundles.csv`, `reports/reviewer_evidence_bundles.json`
+- Approval audit integrity: `/api/approval-audit-integrity`, `reports/approval_audit_integrity.json`
 - Write auth: `CONTROL_TOWER_ROLE_TOKENS` set -> approval POST requires `reviewer` or `admin` role via `X-Control-Tower-Token`
 - Structured logs: request logs are JSON lines and include request id, method, path, status, duration
 - Monitoring artifact: `reports/ops_metrics_snapshot.json` and append-only `reports/ops_metrics_history.jsonl`
@@ -63,4 +65,5 @@ Stage 1 impact simulation artifacts
 - Refresh cadence: rerun after bike-share readiness changes or Stage 2 review queue changes
 - Evidence freshness: timezone-aware source timestamp 기준 3시간 SLA. 초과·누락·미래 시각은 `needs_more_evidence`로 강제
 - Evidence integrity: contract version, impact card, action plan canonical JSON의 SHA-256 fingerprint로 content drift 탐지
+- Approval integrity: reviewer decision canonical payload를 이전 event hash와 연결하고 마지막 decision을 queue state로 replay; 실패 시 deployment gate 차단
 - Write boundary: approval POST writes only to `OUTPUT_ROOT/control_tower.sqlite`; it does not publish, dispatch, or mutate upstream artifacts

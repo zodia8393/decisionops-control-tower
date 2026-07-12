@@ -47,6 +47,7 @@ flowchart LR
     P18["P1.8 deployment readiness writer"]
     P19["P1.9 evidence freshness/integrity gate"]
     P20["P1.10 reviewer policy robustness"]
+    P21["P1.11 approval chain/replay verifier"]
 
     D11[("D1.1 control_state.json")]
     D12[("D1.2 control_review_queue.csv")]
@@ -57,6 +58,7 @@ flowchart LR
     D17[("D1.7 deployment_readiness artifact")]
     D18[("D1.8 reviewer_evidence_bundles")]
     D19[("D1.9 reviewer_policy_robustness")]
+    D20[("D1.10 approval_audit_integrity")]
 
     E11["Stage 1 산출물"]
     E12["Stage 2 산출물"]
@@ -71,6 +73,7 @@ flowchart LR
     D12 --> P14
     P14 --> P15 --> D14
     E13 -->|"role token 설정 시 approval POST"| P16 --> D15
+    D15 --> P21 --> D20
     P14 --> P17 --> D16
     D11 --> P18
     D12 --> P18
@@ -81,6 +84,7 @@ flowchart LR
     D19 --> P14
     D14 --> E14
     D17 --> E14
+    D20 --> E14
 ```
 
 ## 데이터 저장소
@@ -96,6 +100,7 @@ flowchart LR
 | D1.7 deployment readiness artifact | local/container/hosted/public decision과 blocker | deployment readiness writer | 검토자, portfolio runbook |
 | D1.8 reviewer evidence bundles | impact/action join, source age, SLA, SHA-256 fingerprint | evidence gate | API, dashboard, deployment readiness |
 | D1.9 reviewer policy robustness | 4 stress scenarios, 3 capacities, 3 policies의 regret/stability | robustness evaluator | API, dashboard, final report |
+| D1.10 approval audit integrity | chained decision hash, replay verdict, mismatch 위치 | approval verifier | API, dashboard, deployment readiness |
 
 ## 흐름 목록
 
@@ -112,6 +117,7 @@ flowchart LR
 | F9 | control state/ops metric | deployment readiness writer | local/container/hosted/public readiness | upstream readiness와 hardening 전 public deploy는 `NO_GO` |
 | F10 | impact/action artifact | evidence gate | source age, freshness, fingerprint, claim boundary | non-fresh evidence는 `needs_more_evidence`로 차단 |
 | F11 | impact cards | robustness evaluator | capacity, unit jitter, confidence stress, source dropout | safety-first dominance와 zero public-claim violation 검증 |
+| F12 | SQLite approval history | audit verifier | canonical decision payload와 replay state | chain/replay 실패 시 local deployment도 `NO_GO` |
 
 ## 신뢰/안전 경계
 
@@ -121,6 +127,7 @@ flowchart LR
 | write 경계 | Approval POST는 local `control_tower.sqlite`에만 기록한다. |
 | auth 경계 | `CONTROL_TOWER_ROLE_TOKENS`가 설정되면 write action은 `X-Control-Tower-Token` 기반 reviewer/admin role이 필요하다. |
 | observability 경계 | request log, ops metric, deployment readiness는 숨은 runtime state가 아니라 명시적 artifact다. |
+| audit 경계 | Hash chain/replay는 local tamper evidence이며 외부 서명·공증을 주장하지 않는다. |
 | public deploy 경계 | local/container smoke는 `GO`일 수 있지만 upstream readiness와 production hardening 전 public deploy는 `NO_GO`다. |
 
 ## 현재 운영 상태

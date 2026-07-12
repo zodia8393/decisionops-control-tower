@@ -116,6 +116,11 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
             "/dashboard#evidence-bundles",
             "#evidence-bundles",
         )
+        capture(
+            "approval_audit_integrity",
+            "/dashboard#approval-audit-integrity",
+            "#approval-audit-integrity",
+        )
         capture("reviewer_queue", "/dashboard#reviewer-queue", "#reviewer-queue")
         capture("openapi_docs", "/docs", full_page=False)
         context.close()

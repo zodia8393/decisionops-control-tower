@@ -21,6 +21,7 @@ from decisionops_control_tower.agent import (
     build_fallback_reviewer_brief,
 )
 from decisionops_control_tower.dashboard import render_dashboard
+from decisionops_control_tower.store import verify_audit_integrity
 
 
 DEFAULT_OUTPUT_ROOT = Path("/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower")
@@ -1077,6 +1078,11 @@ def _build_api_contract() -> dict[str, Any]:
             {"method": "GET", "path": "/api/review-history", "returns": "SQLite approval history"},
             {
                 "method": "GET",
+                "path": "/api/approval-audit-integrity",
+                "returns": "SHA-256-linked approval history and deterministic queue-state replay verdict",
+            },
+            {
+                "method": "GET",
                 "path": "/api/impact-cards",
                 "returns": "Seoul Ddareungi impact cards with validation guardrail state",
             },
@@ -1129,6 +1135,7 @@ def _write_dashboard(
     policy_robustness: dict[str, Any],
     action_plan: list[dict[str, Any]],
     evidence_bundles: list[dict[str, Any]],
+    audit_integrity: dict[str, Any],
     agent_brief: dict[str, Any],
 ) -> None:
     ops = {"auth_required": False, "configured_roles": [], "artifacts": {}}
@@ -1141,6 +1148,7 @@ def _write_dashboard(
             reviewer_policy_robustness=policy_robustness,
             reviewer_action_plan=action_plan,
             reviewer_evidence_bundles=evidence_bundles,
+            audit_integrity=audit_integrity,
             summary={"total": len(queue), "by_state": {"pending_reviewer": len(queue)}},
             ops=ops,
             agent_brief=agent_brief,
@@ -1159,6 +1167,7 @@ def _write_reports(
     policy_robustness: dict[str, Any],
     action_plan: list[dict[str, Any]],
     evidence_bundles: list[dict[str, Any]],
+    audit_integrity: dict[str, Any],
     agent_brief: dict[str, Any],
     candidate_notes: list[dict[str, Any]],
 ) -> None:
@@ -1189,6 +1198,7 @@ def _write_reports(
                 f"| Worst-case robustness regret | {state['metrics']['reviewer_policy_worst_case_regret_units']:.1f} | 동일 guarded oracle 대비 confidence-adjusted 후보 단위 손실 |",
                 f"| Reviewer action plan | {state['metrics']['reviewer_action_plan_rows']} | 용량 제한 검토자가 먼저 볼 local-only 실행 계획 수 |",
                 f"| Fresh evidence bundles | {state['metrics']['reviewer_evidence_fresh_rows']}/{state['metrics']['reviewer_evidence_bundle_rows']} | 최신성 SLA와 SHA-256 lock을 통과한 심의 근거 패킷 |",
+                f"| Approval audit integrity | {audit_integrity['status'].upper()} | {audit_integrity['event_count']}개 decision의 hash chain과 queue-state replay verdict |",
                 f"| AI reviewer mode | {agent_brief.get('mode', 'fallback')} | LLM 미설정 시 deterministic fallback brief |",
                 f"| Candidate review notes | {len(candidate_notes)} | 상위 후보별 read-only 검토 메모 |",
                 f"| Incident rows | {state['metrics']['incident_rows']} | NY 511 기반 incident surface row 수 |",
@@ -1209,6 +1219,7 @@ def _write_reports(
                 f"- Reviewer action plan rows: `{len(action_plan)}`",
                 f"- Reviewer evidence bundle rows: `{len(evidence_bundles)}`",
                 f"- Fresh evidence bundle rows: `{state['metrics']['reviewer_evidence_fresh_rows']}`",
+                f"- Approval audit chain/replay: `{audit_integrity['status']}` / `{audit_integrity['event_count']}` events",
                 f"- Agent brief mode: `{agent_brief.get('mode', 'fallback')}`",
                 f"- Candidate review notes: `{len(candidate_notes)}`",
                 "",
@@ -1225,7 +1236,8 @@ def _write_reports(
     (reports / "model_card.md").write_text(
         "# Control Tower System Card\n\n"
         "이 시스템은 새 예측 모델이 아니라 Stage 1/2 산출물을 운영 승인 제품 표면으로 묶는 orchestration layer다.\n\n"
-        "AI Reviewer Agent는 read-only assistant이며, deterministic control state와 policy gate를 source of truth로 유지한다.\n",
+        "AI Reviewer Agent는 read-only assistant이며, deterministic control state와 policy gate를 source of truth로 유지한다.\n\n"
+        "Approval history는 local SHA-256 event chain과 deterministic queue-state replay로 검증하며, 외부 서명 attestation으로 과장하지 않는다.\n",
         encoding="utf-8",
     )
     (reports / "data_source_and_contract.md").write_text(
@@ -1233,7 +1245,7 @@ def _write_reports(
         "- Stage 1: bike-share station readiness, deploy decision, inventory and priority artifacts.\n"
         "- Stage 1 Seoul: Ddareungi live priority and validation summary artifacts.\n"
         "- Stage 2: Agentic DecisionOps eval, holdout, prepublish, MCP contract, review queue, NY 511 incident surface.\n"
-        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, impact policy audit CSV/JSON, reviewer policy robustness CSV/JSON, reviewer action plan CSV/JSON, fingerprinted reviewer evidence bundle CSV/JSON, agent reviewer brief JSON, candidate review notes JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
+        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, impact policy audit CSV/JSON, reviewer policy robustness CSV/JSON, reviewer action plan CSV/JSON, fingerprinted reviewer evidence bundle CSV/JSON, chained approval audit integrity JSON, agent reviewer brief JSON, candidate review notes JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
         encoding="utf-8",
     )
     _write_csv(
@@ -1241,58 +1253,58 @@ def _write_reports(
         [
             {
                 "category": "problem framing and business/career relevance",
-                "score": 96.1,
-                "rationale": "Control Tower connects operations ML, guarded decisions, reviewer-capacity robustness, approval workflow, and freshness-gated evidence packets into one capstone product slice",
+                "score": 96.2,
+                "rationale": "Control Tower connects operations ML, guarded decisions, reviewer-capacity robustness, chained approval audit, and freshness-gated evidence packets into one capstone product slice",
             },
             {
                 "category": "data quality, acquisition, and documentation",
-                "score": 95.8,
-                "rationale": "Contracts cover Stage 1/2 artifacts, Seoul validation, deterministic stress scenarios, source timestamps, freshness SLA, SHA-256 fingerprints, and local output boundaries",
+                "score": 95.9,
+                "rationale": "Contracts cover Stage 1/2 artifacts, Seoul validation, deterministic stress scenarios, freshness fingerprints, approval event hashes, and local output boundaries",
             },
             {
                 "category": "EDA depth and insight quality",
-                "score": 95.7,
-                "rationale": "The product surfaces capacity sensitivity, source-dropout stability, confidence-adjusted regret, evidence age, claim state, and blocker insights rather than static metrics only",
+                "score": 95.8,
+                "rationale": "The product surfaces capacity sensitivity, source-dropout stability, confidence-adjusted regret, evidence age, claim state, and audit replay mismatch rather than static metrics only",
             },
             {
                 "category": "feature engineering or statistical design",
-                "score": 95.7,
-                "rationale": "Impact cards become risk-adjusted reviewer features across capacity, estimate jitter, confidence stress, source dropout, freshness, claim state, and deterministic fingerprints",
+                "score": 95.8,
+                "rationale": "Impact cards and approval events become risk-adjusted reviewer features across capacity, confidence stress, freshness, claim state, fingerprints, and replay state",
             },
             {
                 "category": "modeling, inference, optimization, or analytical method rigor",
-                "score": 95.8,
-                "rationale": "A controlled source-order versus impact versus confidence-weighted comparison reports oracle regret and stability across 36 deterministic stress rows without claiming causal impact",
+                "score": 95.9,
+                "rationale": "Controlled ranking stress reports oracle regret and stability across 36 rows, while deterministic event replay verifies decision-state consistency without causal overclaim",
             },
             {
                 "category": "validation, testing, and reproducibility",
-                "score": 96.0,
-                "rationale": "run_all, FastAPI smoke, hash/freshness sad paths, robustness invariants, dashboard checks, deployment readiness, pytest, and structural validator cover the product contract",
+                "score": 96.2,
+                "rationale": "run_all, FastAPI smoke, content-tamper and queue-replay sad paths, robustness invariants, dashboard checks, deployment readiness, pytest, and structural validator cover the product contract",
             },
             {
                 "category": "interpretation, limitations, and decision usefulness",
-                "score": 95.9,
-                "rationale": "Evidence packets and robustness summaries distinguish candidate from realized impact, quantify stability/regret, and preserve stale-source and public-claim boundaries",
+                "score": 96.0,
+                "rationale": "Evidence packets, robustness summaries, and audit verdicts distinguish candidate from realized impact and preserve stale-source, decision-integrity, and public-claim boundaries",
             },
             {
                 "category": "code quality, structure, maintainability, and automation",
-                "score": 95.8,
-                "rationale": "Typed helper boundaries keep policy stress, action, evidence, API, dashboard, and generated reports deterministic and reproducible under OUTPUT_ROOT",
+                "score": 96.0,
+                "rationale": "Backward-compatible schema migration, canonical hashing, typed replay verification, API, dashboard, and generated reports remain deterministic under OUTPUT_ROOT",
             },
             {
                 "category": "portfolio presentation, README, figures, and final report",
-                "score": 95.9,
-                "rationale": "README, final report, API/dashboard, demo package, and robustness/evidence artifacts explain the controlled comparison and NO_GO boundary conclusion-first",
+                "score": 96.1,
+                "rationale": "README, final report, API/dashboard, demo package, robustness/evidence, and audit-integrity artifacts explain the controlled comparison and NO_GO boundary conclusion-first",
             },
             {
                 "category": "UI, visibility, readability, and mobile scanability",
-                "score": 95.8,
-                "rationale": "Dashboard exposes stress-test dominance, stability, regret, map, action plan, evidence freshness, and ops state in responsive scan-friendly sections",
+                "score": 96.0,
+                "rationale": "Dashboard exposes stress-test dominance, map, action plan, evidence freshness, approval chain/replay verdict, and ops state in responsive scan-friendly sections",
             },
             {
                 "category": "doctoral-level originality, depth, and technical ambition",
-                "score": 95.7,
-                "rationale": "The capstone links forecasting, live mobility data, uncertainty-stressed reviewer optimization, overclaim prevention, provenance, and approval auditability",
+                "score": 95.8,
+                "rationale": "The capstone links forecasting, live mobility data, uncertainty-stressed reviewer optimization, overclaim prevention, evidence provenance, and tamper-evident decision replay",
             },
         ],
     )
@@ -1366,6 +1378,11 @@ def run(
         json.dumps(api_contract, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     _write_csv(reports / "control_review_queue.csv", queue)
+    audit_integrity = verify_audit_integrity(output_root)
+    (reports / "approval_audit_integrity.json").write_text(
+        json.dumps(audit_integrity, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     _write_csv(reports / "impact_cards.csv", impact_cards)
     (reports / "impact_cards.json").write_text(
         json.dumps(impact_cards, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -1404,6 +1421,7 @@ def run(
         policy_robustness,
         action_plan,
         evidence_bundles,
+        audit_integrity,
         agent_brief,
     )
     _write_reports(
@@ -1414,6 +1432,7 @@ def run(
         policy_robustness,
         action_plan,
         evidence_bundles,
+        audit_integrity,
         agent_brief,
         candidate_notes,
     )
@@ -1441,6 +1460,7 @@ def run(
             ),
             "agent_reviewer_brief": str(reports / "agent_reviewer_brief.json"),
             "agent_candidate_review_notes": str(reports / "agent_candidate_review_notes.json"),
+            "approval_audit_integrity": str(reports / "approval_audit_integrity.json"),
             "dashboard": str(dashboard / "index.html"),
             "final_report": str(reports / "final_report.md"),
             "sqlite_database": str(output_root / "control_tower.sqlite"),

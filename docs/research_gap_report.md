@@ -16,6 +16,7 @@
 | Reviewer policy robustness | pass | `/api/reviewer-policy-robustness`와 CSV/JSON이 36-row controlled comparison과 invalid-evidence-first dominance를 재현 | 실제 reviewer feedback으로 utility weight 보정 |
 | Reviewer action plan | pass | `reports/reviewer_action_plan.csv/json`와 `/api/reviewer-action-plan`이 검토 용량 제한 하 local-only 우선순위를 제시 | 실제 운영 reviewer feedback 반영 |
 | Reviewer evidence contract | pass | `/api/reviewer-evidence-bundles`와 CSV/JSON이 impact/action join, 3시간 SLA, timestamp sad path, SHA-256 content lock을 재현 | 외부 서명/원격 attestation은 hosted hardening에서 검토 |
+| Approval audit integrity | pass | reviewer decision을 SHA-256 chain으로 연결하고 deterministic replay로 현재 queue state와 대조; 변조·state mismatch sad path가 deployment gate를 차단 | 서명된 외부 anchor/원격 attestation은 hosted hardening에서 검토 |
 | AI reviewer agent | pass | `/api/agent/reviewer-brief`, `/api/agent/candidate/{candidate_id}/review-notes`, `reports/agent_reviewer_brief.json`, `reports/agent_candidate_review_notes.json`가 deterministic gate를 source of truth로 둔 read-only 검토 요약을 제공 | LLM planner를 붙일 경우 deterministic fallback regression 유지 |
 | privacy publication gate | pass | raw 내부 data/token/write action 미포함 | release artifact scan 유지 |
 | CI/tests/smoke | pass | `scripts/run_all.sh`와 pytest 통과 | CI 실행 유지 |

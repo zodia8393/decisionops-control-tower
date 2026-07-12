@@ -1,4 +1,5 @@
 from pathlib import Path
+import sqlite3
 import sys
 
 
@@ -10,6 +11,7 @@ for path in [SRC, SCRIPTS]:
         sys.path.insert(0, str(path))
 
 from decisionops_control_tower.pipeline import DEFAULT_BIKE_ROOT, DEFAULT_WORKBENCH_ROOT, run
+from decisionops_control_tower.store import database_path, list_queue, record_decision
 from write_deployment_readiness import collect_readiness, write_readiness, _run_docker
 
 
@@ -42,6 +44,8 @@ def test_deployment_readiness_writes_private_demo_gate(tmp_path, monkeypatch):
     assert payload["decisions"]["container_demo"] == "GO"
     assert payload["decisions"]["public_deploy"] == "NO_GO"
     assert payload["artifacts"]["reviewer_evidence_bundles"]["exists"] is True
+    assert payload["artifacts"]["approval_audit_integrity"]["exists"] is True
+    assert payload["approval_audit_integrity"]["status"] == "pass"
     assert payload["auth"]["scheme"] == "demo"
     assert any("buildx" in warning for warning in payload["warnings"])
     assert Path(paths["json"]).exists()
@@ -85,3 +89,22 @@ def test_docker_probe_falls_back_to_sg_group(monkeypatch):
     assert result["ok"] is True
     assert result["via_group"] == "docker"
     assert calls[1][:3] == ["sg", "docker", "-c"]
+
+
+def test_deployment_readiness_blocks_tampered_approval_history(tmp_path):
+    run(tmp_path)
+    control_id = list_queue(tmp_path)[0]["control_id"]
+    record_decision(tmp_path, control_id, "approve", "reviewer_a", "원본")
+    with sqlite3.connect(database_path(tmp_path)) as conn:
+        conn.execute("UPDATE approval_history SET note = '변조' WHERE id = 1")
+
+    payload = collect_readiness(
+        tmp_path,
+        DEFAULT_BIKE_ROOT,
+        DEFAULT_WORKBENCH_ROOT,
+        docker_status=READY_DOCKER,
+    )
+
+    assert payload["decisions"]["local_private_demo"] == "NO_GO"
+    assert payload["approval_audit_integrity"]["status"] == "fail"
+    assert any("approval audit" in item for item in payload["blockers"]["local_private_demo"])

@@ -13,6 +13,7 @@
 5. AI Reviewer Agent가 deterministic gate를 source of truth로 유지하면서 reviewer에게 근거 요약만 제공하는가?
 6. 오래되거나 timestamp가 잘못된 impact evidence가 reviewer 승인 후보로 재사용되지 않는가?
 7. 효과 추정치, confidence, source completeness가 흔들려도 guarded reviewer ordering이 safety-first 기준을 유지하는가?
+8. Reviewer decision history 변조나 현재 queue state 불일치를 deterministic하게 탐지하는가?
 
 ## 분할 원칙
 
@@ -32,6 +33,7 @@
 | confidence-weighted guarded policy | invalid evidence를 먼저 제외하고 confidence-adjusted 후보 단위로 정렬 |
 | evidence-gated reviewer agent | health/API/artifact 근거만 요약하는 read-only assistant |
 | freshness-gated evidence bundle | impact/action join의 최신성·content drift 검증 |
+| chained approval audit | 이전 event hash 연결과 queue-state replay로 결정 이력 무결성 검증 |
 
 ## Ablation
 
@@ -42,6 +44,7 @@
 - Reviewer robustness audit은 4개 deterministic scenario와 capacity 3/6/8에서 source order, impact guarded, confidence-weighted guarded를 비교한다.
 - AI Reviewer Agent는 LLM/agent 없는 기준선 대비 source status, claim-safety rule, evidence refs, candidate notes를 생성하지만 approval write와 `GO/NO_GO` 변경은 하지 않는다.
 - Approval POST는 local SQLite에만 기록되며 external dispatch/write는 하지 않는다.
+- 일반 timestamp history 대비 chained audit은 payload hash와 replay mismatch를 deployment blocker로 승격한다.
 
 ## 평가 지표
 
@@ -59,6 +62,8 @@
 - `reviewer_policy_guarded_dominance_rate`: invalid evidence 수를 우선하고 동률에서 confidence-adjusted units를 비교한 safety dominance 비율.
 - `reviewer_policy_worst_case_regret_units`: confidence-weighted safe oracle 대비 최대 confidence-adjusted 후보 단위 손실.
 - `reviewer_policy_selection_stability`: baseline selection 대비 stress selection의 평균 Jaccard.
+- `approval_audit_integrity.status`: event chain과 queue-state replay가 모두 통과했는지 여부.
+- `approval_audit_integrity.replay_mismatch_count`: history replay와 현재 queue state가 다른 control 수.
 
 ## 불확실성 및 robustness
 
@@ -77,3 +82,4 @@
 - Review queue가 0건이면 product workflow가 비어 있다고 보고 blocker로 둔다.
 - Policy audit에서 guarded policy의 unsupported claim 단위가 0이 아니면 public publication gate를 통과하지 못한다.
 - Evidence timestamp가 누락·오류·미래 시각이거나 SLA를 초과하면 action plan 결과와 무관하게 `needs_more_evidence`로 강제한다.
+- Audit event payload/hash 또는 replay state가 다르면 local/container deployment readiness를 `NO_GO`로 둔다.

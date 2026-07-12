@@ -2,7 +2,7 @@
 
 ## 목적
 
-`DecisionOps Control Tower` pipeline과 FastAPI service가 Stage 1/2 산출물을 읽어 control state, review queue, API contract, dashboard, policy audit, reviewer action plan, reviewer evidence bundle, AI reviewer brief, approval history로 변환하는 계약을 기록한다.
+`DecisionOps Control Tower` pipeline과 FastAPI service가 Stage 1/2 산출물을 읽어 control state, review queue, API contract, dashboard, policy audit, reviewer action plan, reviewer evidence bundle, AI reviewer brief, tamper-evident approval history로 변환하는 계약을 기록한다.
 
 ## 원천
 
@@ -33,6 +33,8 @@
 
 `agent_reviewer_brief`와 `agent_candidate_review_notes`는 health/API/artifact에서 읽은 source status, claim-safety rule, evidence refs, 다음 검토 action만 저장한다. Agent artifact는 approval write, field dispatch, public deploy 판단, 신규 효과 추정을 하지 않는다.
 
+`approval_history`는 `approval-history-sha256-v1` canonical payload로 각 결정을 이전 event hash에 연결한다. Integrity verifier는 chain을 검산하고 control별 마지막 결정을 replay해 현재 `control_queue.approval_state`와 owner를 대조한다. Legacy row는 hash column이 비어 있을 때 한 번만 backfill하며, 이후 mismatch는 자동 복구하지 않는다.
+
 ## 분석 단위
 
 - Control state: pipeline run 1회당 1개 JSON.
@@ -45,7 +47,8 @@
 - AI reviewer brief: run 단위 source status, claim-safety lock, top risks, next actions, limitations.
 - Candidate review notes: 상위 impact card 후보별 evidence refs, local-only next actions, public-claim blocker.
 - Dashboard: run 시점의 blocker, metric, queue snapshot.
-- Approval history: reviewer가 API/dashboard에서 남긴 local decision audit trail.
+- Approval history: reviewer가 API/dashboard에서 남긴 chained local decision audit trail.
+- Approval audit integrity: event chain 검산, queue-state replay, 최초 invalid event와 mismatch 수.
 - Ops metrics: artifact freshness, queue summary, auth enabled flag, configured role names, runtime uptime.
 - Deployment readiness: local private demo, container demo, hosted private demo, public deploy의 분리된 GO/NO_GO 판단.
 - Target: `demo_mode_ready`, `public_deploy_decision`, reviewer approval backlog.
@@ -66,6 +69,7 @@
 | reports | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/reports/` | 제외 |
 | dashboard | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/dashboard/` | 제외 |
 | approval SQLite | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/control_tower.sqlite` | 제외 |
+| approval audit integrity | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/reports/approval_audit_integrity.json` | 제외 |
 | deployment readiness | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/reports/deployment_readiness.*` | 제외 |
 
 ## 누수 위험
@@ -76,6 +80,7 @@
 - Policy audit은 unsafe baseline의 미검증 claim 단위를 명시하고 guarded policy가 이를 0으로 낮추는지 검증한다.
 - Evidence bundle은 timezone-aware source timestamp만 허용한다. 3시간 SLA 초과, timestamp 누락/오류/미래 시각은 local approval 후보에서도 제외한다.
 - SHA-256 fingerprint는 canonical JSON의 impact card와 action plan content drift를 탐지하지만 서명 기반 origin authentication은 제공하지 않는다.
+- Approval audit chain은 decision payload와 queue state의 local tamper evidence를 제공하지만, 서명된 외부 anchor가 없으므로 host 관리자 수준 공격을 방어하는 공증 수단은 아니다.
 - Review queue approval write action은 `CONTROL_TOWER_ROLE_TOKENS`가 설정되면 reviewer/admin 역할 credential을 요구하고, local SQLite에만 기록하며 upstream artifact, 외부 시스템, field action을 변경하지 않는다.
 - AI Reviewer Agent는 read-only이며 `GO/NO_GO`, public claim safety, 숫자 원천을 deterministic artifact에서 가져오고 새 claim을 만들지 않는다.
 - Structured request log는 secret/header value 없이 request metadata만 남긴다.

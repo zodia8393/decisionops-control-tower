@@ -42,6 +42,11 @@ def test_fastapi_review_workflow_persists_approval(tmp_path):
     assert history["items"][0]["control_id"] == control_id
     assert history["items"][0]["decision"] == "approve"
 
+    integrity = client.get("/api/approval-audit-integrity")
+    assert integrity.status_code == 200
+    assert integrity.json()["status"] == "pass"
+    assert integrity.json()["event_count"] == 1
+
     reopened = TestClient(create_app(output_root=tmp_path))
     approved = reopened.get("/api/review-queue", params={"approval_state": "approved"}).json()
     assert any(item["control_id"] == control_id for item in approved["items"])
@@ -77,6 +82,8 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "심의 근거 패킷" in dashboard.text
     assert "근거 패킷 보기" in dashboard.text
     assert "SHA-256" in dashboard.text
+    assert "승인 감사 무결성" in dashboard.text
+    assert "State replay" in dashboard.text
     assert "오늘의 결론" in dashboard.text
     assert "지금 해야 할 일" in dashboard.text
     assert "검토 대기열 보기" in dashboard.text
@@ -178,6 +185,7 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "/api/ops-metrics" in openapi.json()["paths"]
     assert "/api/impact-cards" in openapi.json()["paths"]
     assert "/api/impact-policy-audit" in openapi.json()["paths"]
+    assert "/api/approval-audit-integrity" in openapi.json()["paths"]
     assert "/api/reviewer-action-plan" in openapi.json()["paths"]
     assert "/api/reviewer-policy-robustness" in openapi.json()["paths"]
     assert "/api/reviewer-evidence-bundles" in openapi.json()["paths"]

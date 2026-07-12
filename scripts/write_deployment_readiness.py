@@ -21,6 +21,7 @@ from decisionops_control_tower.pipeline import (
     DEFAULT_OUTPUT_ROOT,
     DEFAULT_WORKBENCH_ROOT,
 )
+from decisionops_control_tower.store import verify_audit_integrity
 
 
 def parse_args() -> argparse.Namespace:
@@ -153,6 +154,14 @@ def collect_readiness(
     require_docker: bool = False,
     docker_status: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    reports = output_root / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    audit_integrity = verify_audit_integrity(output_root)
+    audit_integrity_path = reports / "approval_audit_integrity.json"
+    audit_integrity_path.write_text(
+        json.dumps(audit_integrity, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     client = TestClient(
         create_app(
             output_root=output_root,
@@ -165,7 +174,6 @@ def collect_readiness(
     ops_ok = ops_response.status_code == 200
     ops_payload = ops_response.json() if ops_ok else {}
 
-    reports = output_root / "reports"
     state = _read_json(reports / "control_state.json", {})
     auth = _auth_status()
     docker = docker_status if docker_status is not None else inspect_docker()
@@ -187,6 +195,7 @@ def collect_readiness(
         "agent_candidate_review_notes": _artifact(reports / "agent_candidate_review_notes.json"),
         "dashboard": _artifact(output_root / "dashboard" / "index.html"),
         "sqlite_database": _artifact(output_root / "control_tower.sqlite"),
+        "approval_audit_integrity": _artifact(audit_integrity_path),
         "ops_metrics_snapshot": _artifact(reports / "ops_metrics_snapshot.json"),
         "ops_metrics_history": _artifact(reports / "ops_metrics_history.jsonl"),
     }
@@ -198,6 +207,7 @@ def collect_readiness(
         "reviewer_policy_robustness",
         "reviewer_action_plan",
         "reviewer_evidence_bundles",
+        "approval_audit_integrity",
         "agent_reviewer_brief",
         "agent_candidate_review_notes",
         "dashboard",
@@ -208,6 +218,8 @@ def collect_readiness(
         if not artifacts[name]["exists"]
     ]
     demo_blockers = list(artifact_blockers)
+    if audit_integrity["status"] != "pass":
+        demo_blockers.append("approval audit hash-chain or state replay integrity failed")
     if not state.get("demo_mode_ready"):
         demo_blockers.append("control state is not demo-ready")
     if not ops_ok:
@@ -280,6 +292,7 @@ def collect_readiness(
             "queue": ops_payload.get("queue", {}),
             "artifacts": ops_payload.get("artifacts", {}),
         },
+        "approval_audit_integrity": audit_integrity,
         "artifacts": artifacts,
     }
 
