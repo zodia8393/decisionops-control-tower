@@ -1,0 +1,65 @@
+name: pages-demo
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "src/decisionops_control_tower/**"
+      - "scripts/run_all.sh"
+      - "scripts/smoke_public_demo.py"
+      - "requirements.txt"
+      - ".github/workflows/pages-demo.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build public-safe dashboard snapshot
+        env:
+          OUTPUT_ROOT: ${{ github.workspace }}/.pages-output
+          BIKE_ROOT: /tmp/missing-bike-root
+          WORKBENCH_ROOT: /tmp/missing-workbench-root
+        run: scripts/run_all.sh
+
+      - name: Verify read-only page contract
+        run: python scripts/smoke_public_demo.py --url file://${{ github.workspace }}/.pages-output/dashboard/index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload demo
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .pages-output/dashboard
+
+      - name: Deploy demo
+        id: deployment
+        uses: actions/deploy-pages@v4

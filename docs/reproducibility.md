@@ -8,7 +8,7 @@
 ## 실행
 
 ```bash
-cd /workspace/prj/data-scientist-career/decisionops-control-tower
+cd /workspace/prj/personal/data-scientist-career/decisionops-control-tower
 pip install -r requirements.txt
 scripts/run_all.sh
 ```
@@ -16,7 +16,7 @@ scripts/run_all.sh
 FastAPI server:
 
 ```bash
-cd /workspace/prj/data-scientist-career/decisionops-control-tower
+cd /workspace/prj/personal/data-scientist-career/decisionops-control-tower
 export OUTPUT_ROOT=/tmp/decisionops-control-tower
 scripts/run_server.sh
 ```
@@ -36,16 +36,17 @@ scripts/run_server.sh
 쓰기 인증 모드:
 
 ```bash
-cd /workspace/prj/data-scientist-career/decisionops-control-tower
+cd /workspace/prj/personal/data-scientist-career/decisionops-control-tower
 export CONTROL_TOWER_ROLE_TOKENS="viewer:<viewer-credential>,reviewer:<reviewer-credential>,admin:<admin-credential>"
+export CONTROL_TOWER_DEPLOYMENT_MODE=hosted
 scripts/run_server.sh
 ```
 
 인증 경계 검증:
 
 ```bash
-PYTHONPATH=src python3 scripts/verify_private_demo.py
-PYTHONPATH=src python3 scripts/verify_private_demo.py --url http://127.0.0.1:8093
+PYTHONPATH=src python3 scripts/verify_private_demo.py --exercise-write
+PYTHONPATH=src python3 scripts/verify_private_demo.py --url http://127.0.0.1:8093 --exercise-write
 ```
 
 Docker smoke:
@@ -84,6 +85,7 @@ Dashboard/UI와 기본 인증 smoke:
 ```bash
 PYTHONPATH=src python3 scripts/verify_dashboard_ui.py
 PYTHONPATH=src python3 scripts/smoke_api.py --auth-smoke
+python3 scripts/smoke_public_demo.py
 ```
 
 포트폴리오 캡처 생성:
@@ -95,7 +97,7 @@ python3 scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 `CONTROL_TOWER_ROLE_TOKENS` 설정 후 private demo 인증 smoke:
 
 ```bash
-PYTHONPATH=src python3 scripts/verify_private_demo.py
+PYTHONPATH=src python3 scripts/verify_private_demo.py --exercise-write
 ```
 
 깨끗한 demo state 재시드:
@@ -110,8 +112,8 @@ PYTHONPATH=src python3 scripts/prepare_demo_state.py --reset-approval-store
 ## 검증
 
 ```bash
-python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py \
-  --project /workspace/prj/data-scientist-career/decisionops-control-tower \
+python3 /workspace/prj/personal/data-scientist-career/scripts/validate_weekend_project.py \
+  --project /workspace/prj/personal/data-scientist-career/decisionops-control-tower \
   --stage saturday
 ```
 
@@ -121,7 +123,8 @@ python3 /workspace/prj/data-scientist-career/scripts/validate_weekend_project.py
 - 산출물 root 아래 `reports/run_summary.json` 또는 동등한 실행 요약이 생성됩니다.
 - `scripts/smoke_api.py`가 `/health`, `/api/review-queue`, `/api/agent/reviewer-brief`, `/dashboard`, `/openapi.json`를 확인합니다.
 - `scripts/smoke_api.py --auth-smoke`가 인증 없는 write 요청을 401로 막고, reviewer token이 인증 경계를 통과하는지 확인합니다.
-- `scripts/verify_private_demo.py`가 실제 role-token 설정에서 viewer write 차단, reviewer/admin write 인증, credential 비출력을 확인합니다.
+- `scripts/verify_private_demo.py --exercise-write`가 viewer write 차단, reviewer/admin 승인 기록, history 반영, audit replay, credential 비출력을 확인합니다.
+- `scripts/smoke_public_demo.py`가 공개 URL의 HTTP/HTML marker와 write-control 부재를 확인합니다.
 - `scripts/verify_dashboard_ui.py`가 한국어 UI, primary CTA, OpenStreetMap tile 기반 후보번호 overlay, AI Reviewer Brief, 좌표 상태, 판단 근거 drawer, 내부 ID 숨김을 확인합니다.
 - `scripts/verify_dashboard_ui.py`가 policy audit과 reviewer action plan section도 확인합니다.
 - `scripts/capture_demo_screenshots.py`가 dashboard, 지도, review queue, OpenAPI 캡처와 manifest를 생성합니다.

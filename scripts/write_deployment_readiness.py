@@ -15,7 +15,12 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from decisionops_control_tower.app import create_app
+from decisionops_control_tower.app import (
+    MIN_HOSTED_CREDENTIAL_LENGTH,
+    WRITE_ROLES,
+    _parse_role_tokens,
+    create_app,
+)
 from decisionops_control_tower.pipeline import (
     DEFAULT_BIKE_ROOT,
     DEFAULT_OUTPUT_ROOT,
@@ -127,17 +132,37 @@ def inspect_docker() -> dict[str, Any]:
 def _auth_status() -> dict[str, Any]:
     role_tokens = os.environ.get("CONTROL_TOWER_ROLE_TOKENS", "").strip()
     legacy_token = os.environ.get("CONTROL_TOWER_API_TOKEN", "").strip()
+    errors: list[str] = []
+    credentials: dict[str, str] = {}
+    try:
+        credentials = _parse_role_tokens(role_tokens)
+    except ValueError as exc:
+        errors.append(str(exc))
+    if legacy_token:
+        if legacy_token in credentials:
+            errors.append("duplicate control tower credential is not allowed")
+        else:
+            credentials[legacy_token] = "reviewer"
     if role_tokens:
         scheme = "role_tokens"
     elif legacy_token:
         scheme = "legacy_reviewer_token"
     else:
         scheme = "demo"
+    if credentials and not set(credentials.values()).intersection(WRITE_ROLES):
+        errors.append("reviewer or admin credential is required")
+    if any(len(credential) < MIN_HOSTED_CREDENTIAL_LENGTH for credential in credentials):
+        errors.append(
+            f"hosted credentials must be at least {MIN_HOSTED_CREDENTIAL_LENGTH} characters"
+        )
     return {
         "auth_configured": bool(role_tokens or legacy_token),
+        "hosted_auth_ready": bool(credentials) and not errors,
         "scheme": scheme,
         "role_tokens_configured": bool(role_tokens),
         "legacy_token_configured": bool(legacy_token),
+        "configured_roles": sorted(set(credentials.values())),
+        "configuration_errors": errors,
     }
 
 
@@ -232,6 +257,8 @@ def collect_readiness(
     hosted_private_blockers = list(container_blockers)
     if not auth["auth_configured"]:
         hosted_private_blockers.append("write auth credentials are not configured")
+    elif not auth["hosted_auth_ready"]:
+        hosted_private_blockers.extend(auth["configuration_errors"])
 
     public_blockers = list(hosted_private_blockers)
     public_blockers.extend(state.get("blockers", []))
@@ -250,7 +277,7 @@ def collect_readiness(
 
     local_demo_go = not demo_blockers
     container_demo_go = local_demo_go and docker_ready
-    hosted_private_go = container_demo_go and auth["auth_configured"]
+    hosted_private_go = container_demo_go and auth["hosted_auth_ready"]
     public_go = hosted_private_go and bool(state.get("public_deploy_ready"))
     overall_blockers = list(demo_blockers)
     if require_docker and not container_demo_go:
@@ -277,7 +304,7 @@ def collect_readiness(
         "warnings": warnings,
         "auth": {
             **auth,
-            "configured_roles": ops_payload.get("configured_roles", []),
+            "runtime_configured_roles": ops_payload.get("configured_roles", []),
         },
         "docker": docker,
         "control_state": {

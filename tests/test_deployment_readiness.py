@@ -70,6 +70,45 @@ def test_deployment_readiness_can_require_auth_for_hosted_demo(tmp_path, monkeyp
     assert "write auth credentials are not configured" in payload["blockers"]["hosted_private_demo"]
 
 
+def test_deployment_readiness_rejects_weak_hosted_auth(tmp_path, monkeypatch):
+    monkeypatch.setenv("CONTROL_TOWER_ROLE_TOKENS", "reviewer:short-token")
+    monkeypatch.delenv("CONTROL_TOWER_API_TOKEN", raising=False)
+    run(tmp_path)
+
+    payload = collect_readiness(
+        tmp_path,
+        DEFAULT_BIKE_ROOT,
+        DEFAULT_WORKBENCH_ROOT,
+        require_auth=True,
+        docker_status={**READY_DOCKER, "buildx_ready": True},
+    )
+
+    assert payload["decisions"]["hosted_private_demo"] == "NO_GO"
+    assert payload["auth"]["hosted_auth_ready"] is False
+    assert any("at least 24" in item for item in payload["blockers"]["hosted_private_demo"])
+
+
+def test_deployment_readiness_accepts_strong_reviewer_auth(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "CONTROL_TOWER_ROLE_TOKENS",
+        "reviewer:reviewer-credential-with-32-characters",
+    )
+    monkeypatch.delenv("CONTROL_TOWER_API_TOKEN", raising=False)
+    run(tmp_path)
+
+    payload = collect_readiness(
+        tmp_path,
+        DEFAULT_BIKE_ROOT,
+        DEFAULT_WORKBENCH_ROOT,
+        require_auth=True,
+        docker_status={**READY_DOCKER, "buildx_ready": True},
+    )
+
+    assert payload["decisions"]["hosted_private_demo"] == "GO"
+    assert payload["auth"]["hosted_auth_ready"] is True
+    assert payload["auth"]["configured_roles"] == ["reviewer"]
+
+
 def test_docker_probe_falls_back_to_sg_group(monkeypatch):
     calls = []
 

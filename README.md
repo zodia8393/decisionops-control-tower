@@ -1,16 +1,27 @@
 # DecisionOps Control Tower
 
 [![ci](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml)
+[![demo](https://img.shields.io/badge/▶_TRY_DEMO-GitHub_Pages-0f5f8c)](https://zodia8393.github.io/decisionops-control-tower/)
 
-[핵심 수치](#핵심-수치) · [대표 시각화](#대표-시각화) · [현재 상태](#현재-상태) · [Quick Start](#실행-방법) · [Private Auth](#private-demo-auth)
+[브라우저 데모](https://zodia8393.github.io/decisionops-control-tower/) · [핵심 수치](#핵심-수치) · [동작 방식](#무엇을-만들었나) · [Quick Start](#실행-방법) · [Private Auth](#private-demo-auth)
 
 ## 결론
 
 서울 공공자전거 운영 문제를 예측 점수에서 끝내지 않고, 지도 기반 후보 조치, 사람 검토 대기열, 승인 기록, 배포 가능 여부 판단까지 연결한 AI/ML product slice입니다.
 
-현재 upstream evidence와 public-claim gate는 `GO`입니다. Local/container demo도 `GO`지만, hosted/public endpoint 배포는 write auth credential이 없어 `NO_GO`입니다.
+현재 upstream evidence와 public-claim gate는 `GO`입니다. 공개 read-only snapshot은 GitHub Pages에서 체험할 수 있고, 실제 approval write는 인증된 private demo에서만 허용합니다.
 
-> **Release snapshot · 2026-07-16** — Evidence/claim `GO` · Local/container `GO` · Audit integrity `PASS` · Hosted/public `NO_GO` (write auth 필요)
+> **Release snapshot · 2026-07-16** — Evidence/claim `GO` · Public read-only demo `GO` · Authenticated approval E2E `PASS` · Hosted write API `NO_GO` (배포 target secret 필요)
+
+## 30초 요약
+
+```text
+모델의 재배치 후보  →  근거·안전 규칙 검증  →  사람이 승인·반려  →  감사 이력 재현
+```
+
+가장 빠른 체험은 **[Control Tower 브라우저 데모](https://zodia8393.github.io/decisionops-control-tower/)**입니다. 서울 따릉이 후보 지도, 검토 우선순위, 근거 패킷, 승인 감사 흐름을 한 화면에서 볼 수 있습니다.
+
+공개 화면은 기록된 read-only snapshot이라 실제 승인을 저장하지 않습니다. 실제 FastAPI/SQLite approval은 아래 [Private Demo Auth](#private-demo-auth)에서 실행합니다.
 
 ## 무엇을 만들었나
 
@@ -21,6 +32,7 @@
 | AI Reviewer Agent | evidence-locked reviewer brief, candidate review notes | 근거 기반 검토 요약 |
 | Evidence bundles | source age, 3-hour SLA, SHA-256 fingerprint | stale 근거 차단·content drift 식별 |
 | Approval API | role token 기반 approve/reject/needs-more-evidence | local audit 기록 |
+| Public demo | GitHub Pages recorded snapshot | write control 없는 안전한 체험 |
 | SQLite audit trail | `control_tower.sqlite` | 결정 이력 보존 |
 | Audit integrity | chained SHA-256 + deterministic replay | 이력·현재 queue 불일치 차단 |
 | Deployment gate | local/container/hosted/public 분리 | 공개 여부 `GO/NO_GO` |
@@ -42,9 +54,10 @@
 | Seoul validation | 319 snapshots / 317 evaluated | upstream inventory evidence `READY` |
 | Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
 | Upstream public claim | `GO` | evidence 기반 claim 검토 가능 |
-| Public endpoint deploy | `NO_GO` | write auth credential 설정 필요 |
+| Public read-only demo | `GO` | GitHub Pages, write/API token 없음 |
+| Hosted write API | `NO_GO` | 배포 target secret 설정 필요 |
 | Evidence-backed quality | 96.0 | fresh JUnit·robustness·freshness·audit artifact가 모두 있을 때만 활성화 |
-| Verified tests | 32 passed | quality fallback, API, audit, auth, deployment bind regression 포함 |
+| Verified tests | 41 passed | public read-only contract, hosted fail-closed, approval E2E, audit, API 포함 |
 
 ## 얻은 인사이트
 
@@ -83,8 +96,6 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 | 검토 대기열 | <img src="docs/assets/demo/reviewer_queue.png" alt="Reviewer queue" width="520"> |
 | OpenAPI surface | <img src="docs/assets/demo/openapi_docs.png" alt="OpenAPI docs" width="520"> |
 
-시연 흐름은 [docs/demo_package.md](docs/demo_package.md)에 정리했습니다.
-
 ## 현재 상태
 
 | 항목 | 상태 | 의미 |
@@ -92,11 +103,12 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 | Local private demo | `GO` | reviewer walkthrough 가능 |
 | Container demo | `GO` | Docker/Compose smoke 통과 |
 | Hosted private demo | `NO_GO` | write auth 미설정 |
-| Public endpoint deploy | `NO_GO` | write auth 미설정 |
+| Public read-only demo | `GO` | GitHub Pages recorded snapshot |
+| Hosted write API | `NO_GO` | 배포 target secret 미설정 |
 | Seoul validation | `READY` | 후보 검토 가능 |
 | Upstream public claim | `GO` | evidence 기반 claim 검토 가능 |
 
-endpoint의 `NO_GO`는 upstream evidence 실패가 아니라 인증 설정을 요구하는 의도한 운영 guardrail입니다.
+Hosted write API의 `NO_GO`는 upstream evidence 실패가 아니라 배포 target과 secret 설정을 요구하는 의도한 운영 guardrail입니다. `CONTROL_TOWER_DEPLOYMENT_MODE=hosted`는 reviewer/admin credential이 없거나 24자보다 짧으면 startup 단계에서 실패합니다.
 
 **다음 gate:** role credential을 안전한 실행 환경에 설정하고 `verify_private_demo.py`와 deployment readiness의 `--require-auth --require-docker` 검증을 통과해야 합니다.
 
@@ -160,8 +172,9 @@ scripts/run_server.sh
 
 ```bash
 export CONTROL_TOWER_ROLE_TOKENS="viewer:<viewer-credential>,reviewer:<reviewer-credential>,admin:<admin-credential>"
-PYTHONPATH=src scripts/verify_private_demo.py
-PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
+export CONTROL_TOWER_DEPLOYMENT_MODE=hosted
+PYTHONPATH=src scripts/verify_private_demo.py --exercise-write
+PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093 --exercise-write
 PYTHONPATH=src python3 scripts/write_deployment_readiness.py \
   --output-root /tmp/decisionops-control-tower \
   --require-auth \
@@ -183,6 +196,7 @@ python3 -m compileall -q src tests scripts
 PYTHONPATH=src python3 -m pytest -q
 scripts/run_all.sh
 PYTHONPATH=src scripts/verify_dashboard_ui.py
+python3 scripts/smoke_public_demo.py
 curl -fsS http://127.0.0.1:8093/api/agent/reviewer-brief
 curl -fsS http://127.0.0.1:8093/api/approval-audit-integrity
 PYTHONPATH=src scripts/smoke_api.py --auth-smoke
@@ -217,7 +231,8 @@ scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 
 - Approval POST는 local SQLite audit trail에만 기록합니다.
 - 실제 자전거 재배치, 외부 dispatch, upstream artifact mutation은 하지 않습니다.
-- Public endpoint deploy는 write auth credential을 설정하고 hosted hardening을 재검증하기 전까지 `NO_GO`입니다.
+- Public read-only Pages demo에는 승인 button, write API, token이 포함되지 않습니다.
+- Hosted write API는 target secret을 설정하고 hosted hardening을 재검증하기 전까지 `NO_GO`입니다.
 - Evidence fingerprint는 source drift 탐지용이며 전자서명이나 외부 공증을 대체하지 않습니다.
 - Approval hash chain은 local tamper evidence이며 DB 밖의 서명된 anchor 또는 원격 attestation을 제공하지 않습니다.
 - Robustness audit은 reviewer ordering stress test이며 실현 효과나 인과효과 추정치가 아닙니다.

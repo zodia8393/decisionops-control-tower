@@ -25,6 +25,8 @@
 | SNS 원문 제외 | pass | social source 없음 |
 | secret scan | pass | token/API key 값 미포함 |
 | unsafe write action | pass | approval POST는 reviewer/admin 역할 credential이 있을 때만 허용되고 local SQLite audit trail에만 기록하며 외부 dispatch/write를 하지 않음 |
+| hosted fail-closed auth | pass | hosted mode는 24자 이상 reviewer/admin credential이 없으면 startup 실패하며 runtime에는 credential digest만 보관 |
+| public demo isolation | pass | GitHub Pages snapshot은 approval button, write fetch, credential header를 포함하지 않음 |
 | request logging | pass | structured log는 request id, method, path, status, duration만 기록하고 token/header 값은 남기지 않음 |
 | monitoring snapshot | pass | ops metrics snapshot은 artifact freshness와 queue summary만 남기고 secret/header 값은 포함하지 않음 |
 | deployment readiness | pass | deployment gate는 credential 값 없이 auth 설정 여부, role 이름, Docker/buildx 상태, blocker만 기록함 |
