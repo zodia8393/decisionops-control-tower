@@ -56,12 +56,21 @@ scripts/verify_docker_deployment.sh
 CONTAINER_NAME=decisionops-control-tower-codex-smoke PORT=8095 DOCKER_CLEANUP=1 scripts/verify_docker_deployment.sh
 ```
 
+인자 없이 실행하면 검증용 container name과 loopback host port를 매번
+격리합니다. 기본 ephemeral smoke image도 운영용
+`decisionops-control-tower:local`과 분리하며, 성공·실패와 무관하게 smoke
+container와 build가 완료된 ephemeral image를 자동 정리합니다.
+
 Compose:
 
 ```bash
 scripts/verify_compose_deployment.sh
 COMPOSE_PROJECT_NAME=decisionops-control-tower-compose-smoke PORT=8094 COMPOSE_CLEANUP=1 scripts/verify_compose_deployment.sh
 ```
+
+Compose smoke도 기본은 고유 project name·loopback port·ephemeral image를
+사용하고 stack, network, build가 완료된 ephemeral image를 자동 정리합니다.
+Docker의 shared build cache는 다른 build에 영향을 주지 않도록 prune하지 않습니다.
 
 Deployment readiness gate:
 

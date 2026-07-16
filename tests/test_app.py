@@ -13,8 +13,18 @@ if str(SRC) not in sys.path:
 from decisionops_control_tower.app import create_app
 
 
+def create_test_app(tmp_path: Path, **kwargs):
+    """Build deterministic demo inputs instead of reading live /DATA artifacts."""
+    return create_app(
+        output_root=tmp_path,
+        bike_root=tmp_path / "missing-bike",
+        workbench_root=tmp_path / "missing-workbench",
+        **kwargs,
+    )
+
+
 def test_fastapi_review_workflow_persists_approval(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path))
+    client = TestClient(create_test_app(tmp_path))
 
     health = client.get("/health")
     assert health.status_code == 200
@@ -47,13 +57,13 @@ def test_fastapi_review_workflow_persists_approval(tmp_path):
     assert integrity.json()["status"] == "pass"
     assert integrity.json()["event_count"] == 1
 
-    reopened = TestClient(create_app(output_root=tmp_path))
+    reopened = TestClient(create_test_app(tmp_path))
     approved = reopened.get("/api/review-queue", params={"approval_state": "approved"}).json()
     assert any(item["control_id"] == control_id for item in approved["items"])
 
 
 def test_fastapi_validation_and_dashboard(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path))
+    client = TestClient(create_test_app(tmp_path))
 
     queue = client.get("/api/review-queue").json()
     control_id = queue["items"][0]["control_id"]
@@ -196,7 +206,7 @@ def test_fastapi_validation_and_dashboard(tmp_path):
 def test_agent_reviewer_brief_is_fallback_and_evidence_locked(tmp_path, monkeypatch):
     monkeypatch.delenv("CONTROL_TOWER_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    client = TestClient(create_app(output_root=tmp_path))
+    client = TestClient(create_test_app(tmp_path))
 
     health = client.get("/health")
     assert health.status_code == 200
@@ -229,7 +239,7 @@ def test_agent_reviewer_brief_is_fallback_and_evidence_locked(tmp_path, monkeypa
 
 
 def test_fastapi_write_auth_when_token_configured(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path, auth_token="legacy-pass"))
+    client = TestClient(create_test_app(tmp_path, auth_token="test-token"))
 
     health = client.get("/health", headers={"X-Request-ID": "pytest-request"})
     assert health.status_code == 200
@@ -248,14 +258,14 @@ def test_fastapi_write_auth_when_token_configured(tmp_path):
 
     wrong_token = client.post(
         f"/api/review-queue/{control_id}/decision",
-        headers={"X-Control-Tower-Token": "wrong"},
+        headers={"X-Control-Tower-Token": "test-password"},
         json={"decision": "reject", "reviewer": "pytest_reviewer"},
     )
     assert wrong_token.status_code == 401
 
     accepted = client.post(
         f"/api/review-queue/{control_id}/decision",
-        headers={"X-Control-Tower-Token": "legacy-pass"},
+        headers={"X-Control-Tower-Token": "test-token"},
         json={"decision": "reject", "reviewer": "pytest_reviewer"},
     )
     assert accepted.status_code == 200
@@ -265,12 +275,12 @@ def test_fastapi_write_auth_when_token_configured(tmp_path):
 
 def test_role_tokens_allow_reviewer_or_admin_only_for_writes(tmp_path):
     client = TestClient(
-        create_app(
-            output_root=tmp_path,
+        create_test_app(
+            tmp_path,
             auth_roles={
-                "view-pass": "viewer",
-                "review-pass": "reviewer",
-                "admin-pass": "admin",
+                "test-token": "viewer",
+                "test-access-token": "reviewer",
+                "test-api-key": "admin",
             },
         )
     )
@@ -284,14 +294,14 @@ def test_role_tokens_allow_reviewer_or_admin_only_for_writes(tmp_path):
 
     viewer = client.post(
         f"/api/review-queue/{control_id}/decision",
-        headers={"X-Control-Tower-Token": "view-pass"},
+        headers={"X-Control-Tower-Token": "test-token"},
         json={"decision": "approve", "reviewer": "pytest_viewer"},
     )
     assert viewer.status_code == 403
 
     reviewer = client.post(
         f"/api/review-queue/{control_id}/decision",
-        headers={"X-Control-Tower-Token": "review-pass"},
+        headers={"X-Control-Tower-Token": "test-access-token"},
         json={"decision": "approve", "reviewer": "pytest_reviewer"},
     )
     assert reviewer.status_code == 200
@@ -301,7 +311,7 @@ def test_role_tokens_allow_reviewer_or_admin_only_for_writes(tmp_path):
     next_control_id = queue["items"][0]["control_id"]
     admin = client.post(
         f"/api/review-queue/{next_control_id}/decision",
-        headers={"X-Control-Tower-Token": "admin-pass"},
+        headers={"X-Control-Tower-Token": "test-api-key"},
         json={"decision": "needs_more_evidence", "reviewer": "pytest_admin"},
     )
     assert admin.status_code == 200
@@ -310,14 +320,14 @@ def test_role_tokens_allow_reviewer_or_admin_only_for_writes(tmp_path):
 
 def test_role_config_rejects_invalid_roles(tmp_path):
     with pytest.raises(ValueError, match="unsupported control tower role"):
-        create_app(output_root=tmp_path, auth_roles={"bad-pass": "operator"})
+        create_test_app(tmp_path, auth_roles={"test-password": "operator"})
 
     with pytest.raises(ValueError, match="empty control tower credential"):
-        create_app(output_root=tmp_path, auth_roles={"": "viewer"})
+        create_test_app(tmp_path, auth_roles={"": "viewer"})
 
 
 def test_ops_metrics_report_artifact_health(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path))
+    client = TestClient(create_test_app(tmp_path))
 
     ops = client.get("/api/ops-metrics")
     assert ops.status_code == 200

@@ -85,7 +85,7 @@ def _smoke_basic(args: argparse.Namespace) -> None:
 
 
 def _smoke_auth(args: argparse.Namespace) -> None:
-    token = "smoke-pass"
+    token = "test-smoke-token"
     client = TestClient(
         create_app(
             output_root=Path(args.output_root),

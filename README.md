@@ -6,7 +6,7 @@
 
 서울 공공자전거 운영 문제를 예측 점수에서 끝내지 않고, 지도 기반 후보 조치, 사람 검토 대기열, 승인 기록, 배포 가능 여부 판단까지 연결한 AI/ML product slice입니다.
 
-현재 결론은 명확합니다. Local/private demo는 `GO`지만 public deploy와 성과 claim은 upstream readiness가 끝날 때까지 `NO_GO`입니다.
+현재 upstream evidence와 public-claim gate는 `GO`입니다. Local/container demo도 `GO`지만, hosted/public endpoint 배포는 write auth credential이 없어 `NO_GO`입니다.
 
 ## 무엇을 만들었나
 
@@ -26,22 +26,24 @@
 | 항목 | 값 | 의미 |
 |---|---:|---|
 | Impact cards | 12 | 서울 따릉이 후보 조치 수 |
-| Candidate units | 735 | 검토 대상 후보 이동량 |
-| Unsupported claim avoided | 735 | 공개 claim으로 쓰지 않고 차단한 단위 |
+| Candidate units | 1,007 | 검토 대상 후보 이동량 |
+| Claim-eligible modeled units | 1,007 | upstream validation과 claim gate를 통과한 추정 단위 |
 | Reviewer action plan | 8 | 검토자가 먼저 볼 local-only 계획 |
 | Agent review notes | 8 | 상위 후보별 evidence-locked 검토 메모 |
 | Fresh evidence bundles | 8/8 | 최신성·content lock 계약을 통과한 심의 패킷 |
 | Robustness comparisons | 36 | 효과 jitter·confidence stress·source dropout 포함 |
 | Guarded safety dominance | 100% | invalid evidence를 먼저 줄이고 동률에서 조정 단위 비교 |
 | Audit integrity | `PASS` | reviewer history chain과 queue-state replay 통과 |
+| Docker/Compose smoke | `PASS` | 격리 build·HTTP·healthcheck 실행 후 transient 자원 정리 확인 |
 | Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
-| Public deploy | `NO_GO` | 외부 공개 차단 상태 |
+| Upstream public claim | `GO` | evidence 기반 claim 검토 가능 |
+| Public endpoint deploy | `NO_GO` | write auth credential 설정 필요 |
 
 ## 얻은 인사이트
 
 운영 제품에서 중요한 것은 높은 점수보다 “지금 공개해도 되는가”입니다. 이 프로젝트는 후보 효과 단위를 계산하면서도, 검증 전 수치를 대외 성과로 말하지 못하게 막습니다.
 
-무검토 공개 기준선은 735단위의 unsupported claim을 만들 수 있습니다. Guarded policy는 같은 후보를 local reviewer evidence로만 보존합니다.
+이전 blocked 상태에서는 후보 단위를 local reviewer evidence로만 보존했습니다. 현재 1,007단위는 upstream gate를 통과했지만, 모델 기반 추정치이므로 reviewer approval과 표현 범위 검토 없이 실현 성과로 공개하지 않습니다.
 
 검증 상태가 `READY`여도 근거가 오래되면 같은 판단을 재사용하면 안 됩니다. 각 심의 패킷은 관측 시각과 3시간 SLA를 확인하고, source content가 달라지면 SHA-256 fingerprint도 바뀝니다.
 
@@ -79,13 +81,13 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 | 항목 | 상태 | 의미 |
 |---|---|---|
 | Local private demo | `GO` | reviewer walkthrough 가능 |
-| Container demo | `GO` | Docker smoke 가능 |
+| Container demo | `GO` | Docker/Compose smoke 통과 |
 | Hosted private demo | `NO_GO` | write auth 미설정 |
-| Public deploy | `NO_GO` | upstream readiness 대기 |
+| Public endpoint deploy | `NO_GO` | write auth 미설정 |
 | Seoul validation | `READY` | 후보 검토 가능 |
-| Public claim | `blocked` | 외부 성과 주장 금지 |
+| Upstream public claim | `GO` | evidence 기반 claim 검토 가능 |
 
-`NO_GO`는 실패가 아니라 의도한 guardrail입니다.
+endpoint의 `NO_GO`는 upstream evidence 실패가 아니라 인증 설정을 요구하는 의도한 운영 guardrail입니다.
 
 ## 실행 방법
 
@@ -197,7 +199,7 @@ scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 
 - Approval POST는 local SQLite audit trail에만 기록합니다.
 - 실제 자전거 재배치, 외부 dispatch, upstream artifact mutation은 하지 않습니다.
-- Public deploy는 upstream readiness와 hosted hardening 전까지 `NO_GO`입니다.
+- Public endpoint deploy는 write auth credential을 설정하고 hosted hardening을 재검증하기 전까지 `NO_GO`입니다.
 - Evidence fingerprint는 source drift 탐지용이며 전자서명이나 외부 공증을 대체하지 않습니다.
 - Approval hash chain은 local tamper evidence이며 DB 밖의 서명된 anchor 또는 원격 attestation을 제공하지 않습니다.
 - Robustness audit은 reviewer ordering stress test이며 실현 효과나 인과효과 추정치가 아닙니다.
