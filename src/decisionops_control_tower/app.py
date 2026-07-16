@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
+from decisionops_control_tower.agent import build_candidate_review_notes, build_reviewer_brief
 from decisionops_control_tower.dashboard import render_dashboard
 from decisionops_control_tower.pipeline import (
     DEFAULT_BIKE_ROOT,
@@ -28,6 +29,7 @@ from decisionops_control_tower.store import (
     list_queue,
     queue_summary,
     record_decision,
+    verify_audit_integrity,
 )
 
 
@@ -115,7 +117,11 @@ def _needs_pipeline_refresh(output_root: Path) -> bool:
         output_root / "reports" / "control_review_queue.csv",
         output_root / "reports" / "impact_cards.json",
         output_root / "reports" / "impact_policy_audit.json",
+        output_root / "reports" / "reviewer_policy_robustness.json",
         output_root / "reports" / "reviewer_action_plan.json",
+        output_root / "reports" / "reviewer_evidence_bundles.json",
+        output_root / "reports" / "agent_reviewer_brief.json",
+        output_root / "reports" / "approval_audit_integrity.json",
         output_root / "reports" / "api_contract.json",
         output_root / "dashboard" / "index.html",
     ]
@@ -238,12 +244,28 @@ def create_app(
             "impact_policy_audit": _artifact_status(
                 app.state.output_root / "reports" / "impact_policy_audit.json"
             ),
+            "reviewer_policy_robustness": _artifact_status(
+                app.state.output_root / "reports" / "reviewer_policy_robustness.json"
+            ),
             "reviewer_action_plan": _artifact_status(
                 app.state.output_root / "reports" / "reviewer_action_plan.json"
             ),
+            "reviewer_evidence_bundles": _artifact_status(
+                app.state.output_root / "reports" / "reviewer_evidence_bundles.json"
+            ),
+            "agent_reviewer_brief": _artifact_status(
+                app.state.output_root / "reports" / "agent_reviewer_brief.json"
+            ),
+            "agent_candidate_review_notes": _artifact_status(
+                app.state.output_root / "reports" / "agent_candidate_review_notes.json"
+            ),
             "dashboard": _artifact_status(app.state.output_root / "dashboard" / "index.html"),
             "sqlite_database": _artifact_status(database_path(app.state.output_root)),
+            "approval_audit_integrity": _artifact_status(
+                app.state.output_root / "reports" / "approval_audit_integrity.json"
+            ),
         }
+        audit_integrity = verify_audit_integrity(app.state.output_root)
         return {
             "status": "ok",
             "uptime_seconds": round(time.time() - app.state.started_at, 3),
@@ -253,7 +275,40 @@ def create_app(
             "public_deploy_decision": state.get("public_deploy_decision", "UNKNOWN"),
             "demo_mode_ready": bool(state.get("demo_mode_ready")),
             "queue": queue_summary(app.state.output_root),
+            "approval_audit_integrity": audit_integrity,
             "artifacts": artifacts,
+        }
+
+    def runtime_sources() -> dict[str, Any]:
+        state = _read_json(app.state.output_root / "reports" / "control_state.json", {})
+        queue = list_queue(app.state.output_root)
+        cards = _read_json(app.state.output_root / "reports" / "impact_cards.json", [])
+        if not isinstance(cards, list):
+            cards = []
+        policy_audit = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
+        if not isinstance(policy_audit, list):
+            policy_audit = []
+        policy_robustness = _read_json(
+            app.state.output_root / "reports" / "reviewer_policy_robustness.json", {}
+        )
+        if not isinstance(policy_robustness, dict):
+            policy_robustness = {}
+        action_plan = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
+        if not isinstance(action_plan, list):
+            action_plan = []
+        evidence_bundles = _read_json(
+            app.state.output_root / "reports" / "reviewer_evidence_bundles.json", []
+        )
+        if not isinstance(evidence_bundles, list):
+            evidence_bundles = []
+        return {
+            "state": state,
+            "queue": queue,
+            "impact_cards": cards,
+            "impact_policy_audit": policy_audit,
+            "reviewer_policy_robustness": policy_robustness,
+            "reviewer_action_plan": action_plan,
+            "reviewer_evidence_bundles": evidence_bundles,
         }
 
     @app.get("/")
@@ -265,8 +320,12 @@ def create_app(
             "dashboard": "/dashboard",
             "impact_cards": "/api/impact-cards",
             "impact_policy_audit": "/api/impact-policy-audit",
+            "reviewer_policy_robustness": "/api/reviewer-policy-robustness",
             "reviewer_action_plan": "/api/reviewer-action-plan",
+            "reviewer_evidence_bundles": "/api/reviewer-evidence-bundles",
+            "agent_reviewer_brief": "/api/agent/reviewer-brief",
             "ops": "/api/ops-metrics",
+            "approval_audit_integrity": "/api/approval-audit-integrity",
             "openapi": "/docs",
         }
 
@@ -281,8 +340,18 @@ def create_app(
             "public_deploy_decision": state.get("public_deploy_decision", "UNKNOWN"),
             "impact_card_rows": state.get("metrics", {}).get("impact_card_rows", 0),
             "impact_policy_audit_rows": state.get("metrics", {}).get("impact_policy_audit_rows", 0),
+            "reviewer_policy_robustness_rows": state.get("metrics", {}).get(
+                "reviewer_policy_robustness_rows", 0
+            ),
             "reviewer_action_plan_rows": state.get("metrics", {}).get("reviewer_action_plan_rows", 0),
+            "reviewer_evidence_bundle_rows": state.get("metrics", {}).get(
+                "reviewer_evidence_bundle_rows", 0
+            ),
+            "reviewer_evidence_fresh_rows": state.get("metrics", {}).get(
+                "reviewer_evidence_fresh_rows", 0
+            ),
             "queue": queue_summary(app.state.output_root),
+            "approval_audit_integrity": verify_audit_integrity(app.state.output_root),
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
             "database": str(database_path(app.state.output_root)),
@@ -332,6 +401,54 @@ def create_app(
             items = [item for item in items if item.get("reviewer_decision") == decision]
         return {"count": len(items), "items": items}
 
+    @app.get("/api/reviewer-policy-robustness")
+    def reviewer_policy_robustness(
+        scenario: str | None = None,
+        policy: str | None = None,
+    ) -> dict[str, Any]:
+        ensure_ready()
+        payload = _read_json(
+            app.state.output_root / "reports" / "reviewer_policy_robustness.json", {}
+        )
+        if not isinstance(payload, dict):
+            payload = {}
+        items = payload.get("rows", [])
+        if not isinstance(items, list):
+            items = []
+        if scenario:
+            items = [item for item in items if item.get("scenario") == scenario]
+        if policy:
+            items = [item for item in items if item.get("policy") == policy]
+        return {
+            "count": len(items),
+            "method": payload.get("method", {}),
+            "summary": payload.get("summary", {}),
+            "items": items,
+        }
+
+    @app.get("/api/reviewer-evidence-bundles")
+    def reviewer_evidence_bundles(
+        freshness_status: str | None = None,
+        evidence_lock_status: str | None = None,
+    ) -> dict[str, Any]:
+        ensure_ready()
+        items = _read_json(
+            app.state.output_root / "reports" / "reviewer_evidence_bundles.json", []
+        )
+        if not isinstance(items, list):
+            items = []
+        if freshness_status:
+            items = [
+                item for item in items if item.get("freshness_status") == freshness_status
+            ]
+        if evidence_lock_status:
+            items = [
+                item
+                for item in items
+                if item.get("evidence_lock_status") == evidence_lock_status
+            ]
+        return {"count": len(items), "items": items}
+
     @app.post("/api/review-queue/{control_id}/decision")
     def review_decision(
         control_id: str,
@@ -360,37 +477,80 @@ def create_app(
         items = list_history(app.state.output_root, limit=safe_limit)
         return {"count": len(items), "items": items}
 
+    @app.get("/api/approval-audit-integrity")
+    def approval_audit_integrity() -> dict[str, Any]:
+        ensure_ready()
+        return verify_audit_integrity(app.state.output_root)
+
     @app.get("/api/ops-metrics")
     def read_ops_metrics() -> dict[str, Any]:
         ensure_ready()
         return ops_metrics()
 
+    @app.get("/api/agent/reviewer-brief")
+    def agent_reviewer_brief() -> dict[str, Any]:
+        ensure_ready()
+        sources = runtime_sources()
+        return build_reviewer_brief(
+            state=sources["state"],
+            queue=sources["queue"],
+            impact_cards=sources["impact_cards"],
+            policy_audit=sources["impact_policy_audit"],
+            action_plan=sources["reviewer_action_plan"],
+            ops=ops_metrics(),
+        )
+
+    @app.get("/api/agent/candidate/{candidate_id}/review-notes")
+    def agent_candidate_review_notes(candidate_id: str) -> dict[str, Any]:
+        ensure_ready()
+        sources = runtime_sources()
+        notes = build_candidate_review_notes(
+            candidate_id=candidate_id,
+            state=sources["state"],
+            impact_cards=sources["impact_cards"],
+            action_plan=sources["reviewer_action_plan"],
+        )
+        if notes is None:
+            raise HTTPException(status_code=404, detail="candidate_id not found")
+        return notes
+
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard() -> HTMLResponse:
         ensure_ready()
-        state = _read_json(app.state.output_root / "reports" / "control_state.json", {})
-        queue = list_queue(app.state.output_root)
+        sources = runtime_sources()
+        state = sources["state"]
+        queue = sources["queue"]
         history = list_history(app.state.output_root, limit=25)
         summary = queue_summary(app.state.output_root)
-        cards = _read_json(app.state.output_root / "reports" / "impact_cards.json", [])
-        if not isinstance(cards, list):
-            cards = []
-        policy_audit = _read_json(app.state.output_root / "reports" / "impact_policy_audit.json", [])
-        if not isinstance(policy_audit, list):
-            policy_audit = []
-        action_plan = _read_json(app.state.output_root / "reports" / "reviewer_action_plan.json", [])
-        if not isinstance(action_plan, list):
-            action_plan = []
+        cards = sources["impact_cards"]
+        policy_audit = sources["impact_policy_audit"]
+        policy_robustness = sources["reviewer_policy_robustness"]
+        action_plan = sources["reviewer_action_plan"]
+        evidence_bundles = sources["reviewer_evidence_bundles"]
+        ops = ops_metrics()
+        audit_integrity = verify_audit_integrity(app.state.output_root)
+        agent_brief = build_reviewer_brief(
+            state=state,
+            queue=queue,
+            impact_cards=cards,
+            policy_audit=policy_audit,
+            action_plan=action_plan,
+            ops=ops,
+        )
         return HTMLResponse(
             render_dashboard(
                 state=state,
                 queue=queue,
                 history=history,
                 summary=summary,
-                ops=ops_metrics(),
+                ops=ops,
                 impact_cards=cards,
                 impact_policy_audit=policy_audit,
+                reviewer_policy_robustness=policy_robustness,
                 reviewer_action_plan=action_plan,
+                reviewer_evidence_bundles=evidence_bundles,
+                audit_integrity=audit_integrity,
+                agent_brief=agent_brief,
             )
         )
 

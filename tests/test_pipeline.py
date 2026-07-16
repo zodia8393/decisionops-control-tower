@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 import sys
@@ -12,6 +13,8 @@ from decisionops_control_tower.pipeline import (
     _build_impact_policy_audit,
     _build_review_queue,
     _build_reviewer_action_plan,
+    _build_reviewer_evidence_bundles,
+    _build_reviewer_policy_robustness,
     run,
 )
 
@@ -33,7 +36,10 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert summary["metrics"]["impact_candidate_units_addressed"] > 0
     assert summary["metrics"]["impact_policy_audit_rows"] >= 8
     assert summary["metrics"]["impact_unsupported_claim_units_avoided"] > 0
+    assert summary["metrics"]["reviewer_policy_robustness_rows"] == 36
+    assert summary["metrics"]["reviewer_policy_guarded_dominance_rate"] >= 0.99
     assert summary["metrics"]["reviewer_action_plan_rows"] > 0
+    assert summary["metrics"]["reviewer_evidence_bundle_rows"] > 0
     assert summary["source_status"]["seoul_validation_status"] in {"READY", "NOT_READY"}
     assert summary["metrics"]["guarded_success_rate"] == 1.0
     assert summary["metrics"]["holdout_success_rate"] == 1.0
@@ -44,22 +50,34 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert Path(summary["reports"]["impact_cards_json"]).exists()
     assert Path(summary["reports"]["impact_policy_audit"]).exists()
     assert Path(summary["reports"]["impact_policy_audit_json"]).exists()
+    assert Path(summary["reports"]["reviewer_policy_robustness"]).exists()
+    assert Path(summary["reports"]["reviewer_policy_robustness_json"]).exists()
     assert Path(summary["reports"]["reviewer_action_plan"]).exists()
     assert Path(summary["reports"]["reviewer_action_plan_json"]).exists()
+    assert Path(summary["reports"]["reviewer_evidence_bundles"]).exists()
+    assert Path(summary["reports"]["reviewer_evidence_bundles_json"]).exists()
+    assert Path(summary["reports"]["agent_reviewer_brief"]).exists()
+    assert Path(summary["reports"]["agent_candidate_review_notes"]).exists()
     assert Path(summary["reports"]["dashboard"]).exists()
     dashboard_html = Path(summary["reports"]["dashboard"]).read_text(encoding="utf-8")
     assert "오늘의 결론" in dashboard_html
     assert "검토 대기열 보기" in dashboard_html
     assert "지도에서 보기" in dashboard_html
     assert "정책 비교 보기" in dashboard_html
+    assert "Stress test 보기" in dashboard_html
     assert "검토 계획 보기" in dashboard_html
+    assert "근거 패킷 보기" in dashboard_html
+    assert "AI Reviewer Brief" in dashboard_html
+    assert "agent mode:" in dashboard_html
+    assert "deterministic gate:" in dashboard_html
+    assert "Evidence lock" in dashboard_html
+    assert "read-only reviewer assistant" in dashboard_html
     assert "지도에서 위치 확인" in dashboard_html
     assert "서울 따릉이 후보 조치 위치 지도" in dashboard_html
-    assert "서울 따릉이 후보 조치 실제 지도 타일" in dashboard_html
-    assert "openstreetmap.org/export/embed.html" in dashboard_html
-    assert 'referrerpolicy="no-referrer"' in dashboard_html
-    assert "후보 번호 지도" in dashboard_html
-    assert "외부 지도 타일이 차단되면" in dashboard_html
+    assert "tile.openstreetmap.org" in dashboard_html
+    assert "지도 타일 © OpenStreetMap contributors" in dashboard_html
+    assert "후보 번호 오버레이 지도" in dashboard_html
+    assert "후보 번호는 실제 지도 타일 위에 표시됩니다" in dashboard_html
     assert "점이 클수록 예상 완화량이 큽니다." in dashboard_html
     assert 'href="#ddareungi-action-1"' in dashboard_html
     assert 'id="ddareungi-action-1"' in dashboard_html
@@ -70,7 +88,11 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "서울 따릉이 대여소 현황과 재배치 우선순위 산출물" in dashboard_html
     assert "검토 기준 보기" in dashboard_html
     assert "영향 정책 비교" in dashboard_html
+    assert "Reviewer policy robustness" in dashboard_html
+    assert "Oracle regret" in dashboard_html
     assert "검토 실행 계획" in dashboard_html
+    assert "심의 근거 패킷" in dashboard_html
+    assert "SHA-256" in dashboard_html
     assert "미검증 claim 단위" in dashboard_html
     assert "권장 결정" in dashboard_html
     assert "원천 근거 요약" in dashboard_html
@@ -85,11 +107,47 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "table-wrap" in dashboard_html
     assert "data-decision" not in dashboard_html
 
+    api_contract = json.loads(Path(summary["reports"]["api_contract"]).read_text(encoding="utf-8"))
+    paths = {item["path"] for item in api_contract["endpoints"]}
+    assert "/api/agent/reviewer-brief" in paths
+    assert "/api/agent/candidate/{candidate_id}/review-notes" in paths
+    assert "/api/reviewer-evidence-bundles" in paths
+    assert "/api/reviewer-policy-robustness" in paths
+
+    agent_brief = json.loads(Path(summary["reports"]["agent_reviewer_brief"]).read_text(encoding="utf-8"))
+    assert agent_brief["mode"] == "fallback"
+    assert agent_brief["claim_safety"]["rule"]
+    candidate_notes = json.loads(
+        Path(summary["reports"]["agent_candidate_review_notes"]).read_text(encoding="utf-8")
+    )
+    assert candidate_notes
+    assert candidate_notes[0]["mode"] == "fallback"
+    assert candidate_notes[0]["claim_safety"]["public_deploy_decision"] == summary["public_deploy_decision"]
+
     impact_cards = json.loads(Path(summary["reports"]["impact_cards_json"]).read_text(encoding="utf-8"))
     assert impact_cards[0]["station_lat"]
     assert impact_cards[0]["station_lon"]
     assert impact_cards[0]["coordinate_status"] == "valid"
     assert impact_cards[0]["public_claim_state"] == "blocked_until_public_deploy_ready"
+
+    evidence_bundles = json.loads(
+        Path(summary["reports"]["reviewer_evidence_bundles_json"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert evidence_bundles
+    assert len(evidence_bundles[0]["evidence_fingerprint_sha256"]) == 64
+    assert evidence_bundles[0]["freshness_status"] in {
+        "fresh",
+        "stale",
+        "missing_timestamp",
+        "future_timestamp",
+    }
+    with Path(summary["reports"]["reviewer_evidence_bundles"]).open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        csv_header = next(csv.reader(handle))
+    assert csv_header[-2:] == ["evidence_lock_status", "evidence_contract_json"]
 
 
 def test_policy_audit_and_action_plan_block_public_overclaim():
@@ -133,6 +191,130 @@ def test_policy_audit_and_action_plan_block_public_overclaim():
     assert guarded["blocked_public_claim_units"] == 10
     assert guarded["unsupported_claim_units"] == 0
     assert plan[0]["reviewer_decision"] == "approve_local_review_only"
+
+
+def test_reviewer_policy_robustness_is_deterministic_and_guarded():
+    cards = [
+        {
+            "impact_card_id": f"SEOUL-IMPACT-{index:04d}",
+            "priority": "P0" if index <= 4 else "P1",
+            "candidate_units_addressed": units,
+            "confidence_score": confidence,
+            "coordinate_status": "valid",
+            "guardrail_state": "ready_for_review",
+        }
+        for index, (units, confidence) in enumerate(
+            [(9, 0.95), (20, 0.7), (13, 0.9), (16, 0.8), (8, 0.85), (7, 0.75)],
+            start=1,
+        )
+    ]
+
+    first = _build_reviewer_policy_robustness(cards)
+    second = _build_reviewer_policy_robustness(cards)
+
+    assert first == second
+    assert first["summary"]["scenario_count"] == 4
+    assert first["summary"]["comparison_rows"] == 36
+    assert first["summary"]["guarded_dominance_rate"] >= 0.99
+    assert first["summary"]["guarded_worst_case_regret_units"] == 0.0
+    assert first["summary"]["guarded_public_claim_violations"] == 0
+    assert {row["scenario"] for row in first["rows"]} == {
+        "baseline",
+        "unit_estimate_jitter",
+        "confidence_stress",
+        "top_candidate_dropout",
+    }
+
+
+def test_reviewer_policy_robustness_flags_invalid_evidence():
+    cards = [
+        {
+            "impact_card_id": "SEOUL-IMPACT-0001",
+            "priority": "P0",
+            "candidate_units_addressed": 10,
+            "confidence_score": 0.5,
+            "coordinate_status": "missing",
+            "guardrail_state": "validation_not_ready",
+        }
+    ]
+
+    result = _build_reviewer_policy_robustness(cards)
+
+    guarded = [
+        row
+        for row in result["rows"]
+        if row["policy"] == "confidence_weighted_guarded_capacity"
+    ]
+    assert guarded
+    baseline = [row for row in guarded if row["scenario"] == "baseline"]
+    assert all(row["invalid_evidence_rows"] == 1 for row in baseline)
+    assert all(row["public_claim_violation_count"] == 0 for row in guarded)
+
+
+def test_evidence_bundles_gate_stale_and_missing_sources_and_hash_content():
+    cards = [
+        {
+            "impact_card_id": "SEOUL-IMPACT-0001",
+            "station_name": "최신 대여소",
+            "recommended_action": "send_bikes",
+            "candidate_units_addressed": 7,
+            "confidence_score": 0.9,
+            "coordinate_status": "valid",
+            "guardrail_state": "ready_for_review",
+            "public_claim_state": "blocked_until_public_deploy_ready",
+            "captured_at_kst": "2026-07-10T18:30:00+09:00",
+        },
+        {
+            "impact_card_id": "SEOUL-IMPACT-0002",
+            "station_name": "오래된 대여소",
+            "recommended_action": "remove_bikes",
+            "candidate_units_addressed": 5,
+            "confidence_score": 0.8,
+            "coordinate_status": "valid",
+            "guardrail_state": "ready_for_review",
+            "public_claim_state": "blocked_until_public_deploy_ready",
+            "captured_at_kst": "2026-07-10T10:00:00+09:00",
+        },
+        {
+            "impact_card_id": "SEOUL-IMPACT-0003",
+            "station_name": "시각 누락 대여소",
+            "recommended_action": "monitor",
+            "candidate_units_addressed": 1,
+            "confidence_score": 0.7,
+            "coordinate_status": "valid",
+            "guardrail_state": "ready_for_review",
+            "public_claim_state": "blocked_until_public_deploy_ready",
+            "captured_at_kst": "",
+        },
+    ]
+    action_plan = _build_reviewer_action_plan(cards, limit=3)
+
+    bundles = _build_reviewer_evidence_bundles(
+        cards,
+        action_plan,
+        generated_at_utc="2026-07-10T10:00:00+00:00",
+        freshness_sla_hours=3.0,
+    )
+
+    assert bundles[0]["freshness_status"] == "fresh"
+    assert bundles[0]["evidence_lock_status"] == "locked_fresh"
+    assert bundles[0]["reviewer_decision"] == "approve_local_review_only"
+    assert bundles[1]["freshness_status"] == "stale"
+    assert bundles[1]["reviewer_decision"] == "needs_more_evidence"
+    assert bundles[2]["freshness_status"] == "missing_timestamp"
+    assert bundles[2]["reviewer_decision"] == "needs_more_evidence"
+
+    changed_cards = [{**card} for card in cards]
+    changed_cards[0]["candidate_units_addressed"] = 8
+    changed = _build_reviewer_evidence_bundles(
+        changed_cards,
+        action_plan,
+        generated_at_utc="2026-07-10T10:00:00+00:00",
+    )
+    assert (
+        changed[0]["evidence_fingerprint_sha256"]
+        != bundles[0]["evidence_fingerprint_sha256"]
+    )
 
 
 def test_public_deploy_stays_blocked_until_bike_readiness(tmp_path):

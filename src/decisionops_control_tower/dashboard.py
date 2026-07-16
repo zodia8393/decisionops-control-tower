@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import math
 from typing import Any
 
 
@@ -345,6 +346,65 @@ button:disabled {
   margin: var(--space-2) 0 0;
   padding-left: var(--space-5);
 }
+.agent-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+  padding: var(--space-4);
+}
+.agent-summary {
+  display: grid;
+  gap: var(--space-3);
+}
+.agent-summary__text {
+  color: var(--color-ink);
+  font-size: 1rem;
+  font-weight: 650;
+}
+.agent-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.agent-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+.agent-list li + li {
+  margin-top: var(--space-2);
+}
+.agent-evidence {
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-4);
+}
+.agent-evidence dl {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.8fr) minmax(0, 1fr);
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+.agent-evidence dt {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+.agent-evidence dd {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.agent-note {
+  margin-top: var(--space-3);
+  color: var(--color-subtle);
+  font-size: 0.82rem;
+}
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--color-border);
@@ -355,6 +415,7 @@ button:disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
   gap: var(--space-4);
+  align-items: start;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-panel);
@@ -368,22 +429,24 @@ button:disabled {
   background: #f7fafc;
   overflow: hidden;
 }
-.tile-map {
-  display: block;
+.map-canvas {
+  position: relative;
   width: 100%;
-  height: 280px;
+  height: 380px;
   border: 0;
   border-bottom: 1px solid var(--color-border);
   background: var(--color-panel-soft);
 }
-.map-fallback-label {
-  padding: var(--space-3) var(--space-3) 0;
-  color: var(--color-muted);
-  font-size: 0.82rem;
-  font-weight: 800;
+.map-overlay {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 .map-source-note {
-  padding: 0 var(--space-3) var(--space-3);
+  padding: var(--space-3);
   color: var(--color-subtle);
   font-size: 0.8rem;
 }
@@ -393,20 +456,25 @@ button:disabled {
 .location-map {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
-.map-grid {
-  stroke: #dbe4ef;
-  stroke-width: 1;
+.map-tile-bg {
+  fill: #eef3f8;
+}
+.map-tile {
+  pointer-events: none;
 }
 .map-frame {
-  fill: #fbfdff;
-  stroke: #b7c3d2;
+  fill: transparent;
+  stroke: rgba(15, 95, 140, 0.26);
   stroke-width: 2;
+}
+.map-marker-link {
+  pointer-events: auto;
 }
 .map-point {
   fill: var(--color-danger);
-  fill-opacity: 0.82;
+  fill-opacity: 0.9;
   stroke: #ffffff;
   stroke-width: 3;
 }
@@ -603,6 +671,16 @@ button:disabled {
   .map-panel {
     grid-template-columns: 1fr;
   }
+  .agent-panel,
+  .agent-lists {
+    grid-template-columns: 1fr;
+  }
+  .agent-evidence {
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+    padding-left: 0;
+    padding-top: var(--space-4);
+  }
   .evidence-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -632,6 +710,12 @@ button:disabled {
   }
   .metric-card {
     min-height: 96px;
+  }
+  .map-canvas {
+    height: 320px;
+  }
+  .agent-evidence dl {
+    grid-template-columns: 1fr;
   }
   .evidence-grid {
     grid-template-columns: 1fr;
@@ -668,8 +752,21 @@ DISPLAY_LABELS = {
     "guarded_all_review": "전량 검토 후 로컬 근거",
     "source_order_capacity": "원천 순서 검토",
     "impact_guarded_capacity": "영향 우선 검토",
+    "confidence_weighted_guarded_capacity": "Confidence 조정 안전 검토",
+    "baseline": "기준 입력",
+    "unit_estimate_jitter": "후보 효과 변동",
+    "confidence_stress": "Confidence 하락",
+    "top_candidate_dropout": "상위 source 누락",
     "approve_local_review_only": "로컬 검토 승인",
     "approve_for_private_demo": "비공개 시연 승인",
+    "fresh": "최신",
+    "stale": "기한 초과",
+    "missing_timestamp": "시각 없음",
+    "future_timestamp": "미래 시각 오류",
+    "locked_fresh": "최신 근거 잠금",
+    "blocked_stale": "오래된 근거 차단",
+    "blocked_missing_timestamp": "시각 없는 근거 차단",
+    "blocked_future_timestamp": "미래 시각 근거 차단",
     "deployment_no_go": "배포 보류",
     "high_uncertainty_review": "불확실성 높음",
     "unsafe_write_action": "쓰기 위험",
@@ -679,6 +776,8 @@ DISPLAY_LABELS = {
     "valid": "좌표 확인됨",
     "missing": "좌표 없음",
     "out_of_range": "좌표 범위 오류",
+    "fallback": "fallback",
+    "llm": "LLM",
 }
 
 
@@ -701,8 +800,10 @@ ARTIFACT_LABELS = {
     "impact_cards": "따릉이 후보 조치 JSON",
     "impact_policy_audit": "영향 정책 비교 JSON",
     "reviewer_action_plan": "검토 실행 계획 JSON",
+    "reviewer_evidence_bundles": "심의 근거 패킷 JSON",
     "dashboard": "대시보드 HTML",
     "sqlite_database": "승인 이력 SQLite",
+    "approval_audit_integrity": "승인 감사 무결성 JSON",
     "ops_metrics_snapshot": "운영 상태 스냅샷",
     "ops_metrics_history": "운영 상태 이력",
 }
@@ -930,7 +1031,7 @@ def _render_impact_map(impact_cards: list[dict[str, Any]]) -> str:
 
     width = 920
     height = 520
-    pad = 58
+    tile_size = 256
     min_lat = min(point["lat"] for point in points)
     max_lat = max(point["lat"] for point in points)
     min_lon = min(point["lon"] for point in points)
@@ -941,36 +1042,61 @@ def _render_impact_map(impact_cards: list[dict[str, Any]]) -> str:
     max_lat += lat_span * 0.16
     min_lon -= lon_span * 0.16
     max_lon += lon_span * 0.16
-    lat_span = max_lat - min_lat
-    lon_span = max_lon - min_lon
-    map_width = width - pad * 2
-    map_height = height - pad * 2
-    first_point = points[0]
     invalid_count = max(0, len(impact_cards) - len(points))
     coordinate_note = (
         f"지도 표시 가능 후보 {len(points)}건"
         + (f", 좌표 미확인/범위 오류 {invalid_count}건 제외" if invalid_count else "")
     )
-    tile_map_src = (
-        "https://www.openstreetmap.org/export/embed.html"
-        f"?bbox={min_lon:.6f},{min_lat:.6f},{max_lon:.6f},{max_lat:.6f}"
-        f"&layer=mapnik&marker={first_point['lat']:.6f},{first_point['lon']:.6f}"
-    )
+
+    def tile_x(lon: float, zoom: int) -> float:
+        return (lon + 180.0) / 360.0 * (2**zoom)
+
+    def tile_y(lat: float, zoom: int) -> float:
+        clipped_lat = max(min(lat, 85.05112878), -85.05112878)
+        lat_rad = math.radians(clipped_lat)
+        return (
+            1.0
+            - math.log(math.tan(lat_rad) + (1.0 / math.cos(lat_rad))) / math.pi
+        ) / 2.0 * (2**zoom)
+
+    zoom = 10
+    for candidate_zoom in range(16, 9, -1):
+        left = tile_x(min_lon, candidate_zoom) * tile_size
+        right = tile_x(max_lon, candidate_zoom) * tile_size
+        top = tile_y(max_lat, candidate_zoom) * tile_size
+        bottom = tile_y(min_lat, candidate_zoom) * tile_size
+        if (right - left) <= width * 0.86 and (bottom - top) <= height * 0.86:
+            zoom = candidate_zoom
+            break
+
+    left = tile_x(min_lon, zoom) * tile_size
+    right = tile_x(max_lon, zoom) * tile_size
+    top = tile_y(max_lat, zoom) * tile_size
+    bottom = tile_y(min_lat, zoom) * tile_size
+    view_min_x = ((left + right) / 2.0) - (width / 2.0)
+    view_min_y = ((top + bottom) / 2.0) - (height / 2.0)
+
+    tile_min_x = math.floor(view_min_x / tile_size)
+    tile_max_x = math.floor((view_min_x + width) / tile_size)
+    tile_min_y = max(0, math.floor(view_min_y / tile_size))
+    tile_max_y = min((2**zoom) - 1, math.floor((view_min_y + height) / tile_size))
+    tiles = []
+    for tile_column in range(tile_min_x, tile_max_x + 1):
+        wrapped_column = tile_column % (2**zoom)
+        for tile_row in range(tile_min_y, tile_max_y + 1):
+            x = tile_column * tile_size - view_min_x
+            y = tile_row * tile_size - view_min_y
+            tile_href = f"https://tile.openstreetmap.org/{zoom}/{wrapped_column}/{tile_row}.png"
+            tiles.append(
+                f'<image class="map-tile" href="{_escape(tile_href)}" '
+                f'x="{x:.1f}" y="{y:.1f}" width="{tile_size}" height="{tile_size}" '
+                'preserveAspectRatio="none" />'
+            )
 
     def project(lat: float, lon: float) -> tuple[float, float]:
-        x = pad + ((lon - min_lon) / lon_span) * map_width
-        y = height - pad - ((lat - min_lat) / lat_span) * map_height
-        return x, y
-
-    grid_lines = []
-    for index in range(1, 4):
-        x = pad + map_width * index / 4
-        y = pad + map_height * index / 4
-        grid_lines.append(
-            f'<line class="map-grid" x1="{x:.1f}" y1="{pad}" x2="{x:.1f}" y2="{height - pad}" />'
-        )
-        grid_lines.append(
-            f'<line class="map-grid" x1="{pad}" y1="{y:.1f}" x2="{width - pad}" y2="{y:.1f}" />'
+        return (
+            tile_x(lon, zoom) * tile_size - view_min_x,
+            tile_y(lat, zoom) * tile_size - view_min_y,
         )
 
     markers = []
@@ -1022,28 +1148,21 @@ def _render_impact_map(impact_cards: list[dict[str, Any]]) -> str:
     return (
         '<div class="map-panel">'
         '<figure class="map-figure" aria-label="서울 따릉이 후보 조치 위치 지도">'
-        f'<iframe class="tile-map" title="서울 따릉이 후보 조치 실제 지도 타일" src="{_escape(tile_map_src)}" '
-        'loading="lazy" referrerpolicy="no-referrer"></iframe>'
-        '<div class="map-fallback-label">후보 번호 지도</div>'
-        f'<p class="map-source-note">{_escape(coordinate_note)}. 외부 지도 타일이 차단되면 아래 번호 지도를 사용합니다.</p>'
-        '<svg class="location-map" viewBox="0 0 920 520" role="img" '
+        '<div class="map-canvas" aria-label="후보 번호 오버레이 지도">'
+        '<svg class="location-map map-overlay" viewBox="0 0 920 520" preserveAspectRatio="none" role="img" '
         'aria-labelledby="map-title map-desc">'
         '<title id="map-title">서울 따릉이 후보 조치 위치 지도</title>'
         '<desc id="map-desc">'
-        "서울 공개데이터 좌표를 기준으로 따릉이 후보 조치 대여소를 표시합니다. "
+        "서울 공개데이터 좌표를 기준으로 실제 OpenStreetMap 타일 위에 따릉이 후보 번호를 겹쳐 표시합니다. "
         "점이 클수록 예상 완화량이 큽니다."
         "</desc>"
-        f'<rect class="map-frame" x="{pad}" y="{pad}" width="{map_width}" height="{map_height}" rx="8" />'
-        f"{''.join(grid_lines)}"
-        f'<text class="map-axis-label" x="{width / 2:.1f}" y="34" text-anchor="middle">북쪽</text>'
-        f'<text class="map-axis-label" x="{width / 2:.1f}" y="{height - 20}" text-anchor="middle">남쪽</text>'
-        f'<text class="map-axis-label" x="22" y="{height / 2:.1f}" text-anchor="middle">서쪽</text>'
-        f'<text class="map-axis-label" x="{width - 22}" y="{height / 2:.1f}" text-anchor="middle">동쪽</text>'
+        f'<rect class="map-tile-bg" x="0" y="0" width="{width}" height="{height}" />'
+        f"{''.join(tiles)}"
+        f'<rect class="map-frame" x="1" y="1" width="{width - 2}" height="{height - 2}" rx="8" />'
         f"{''.join(markers)}"
-        f'<text class="map-caption" x="{pad}" y="{height - 30}">'
-        "점 크기 = 후보 이동량, 번호 = 아래 목록 순서"
-        "</text>"
         "</svg>"
+        "</div>"
+        f'<p class="map-source-note">{_escape(coordinate_note)}. 후보 번호는 실제 지도 타일 위에 표시됩니다. 지도 타일 © OpenStreetMap contributors.</p>'
         "</figure>"
         "<div>"
         "<h3>지도에서 먼저 볼 위치</h3>"
@@ -1172,6 +1291,81 @@ def _render_blockers(blockers: list[Any]) -> str:
     )
 
 
+def _render_agent_brief(agent_brief: dict[str, Any] | None) -> str:
+    if not agent_brief:
+        return (
+            '<div class="callout">'
+            "<h3>AI Reviewer Agent brief가 아직 생성되지 않았습니다</h3>"
+            '<p class="section__intro">agent API가 준비되면 이 영역에 근거 기반 검토 요약이 표시됩니다.</p>'
+            "</div>"
+        )
+    source_status = agent_brief.get("source_status", {})
+    if not isinstance(source_status, dict):
+        source_status = {}
+    claim_safety = agent_brief.get("claim_safety", {})
+    if not isinstance(claim_safety, dict):
+        claim_safety = {}
+    risks = agent_brief.get("top_risks", [])
+    if not isinstance(risks, list):
+        risks = []
+    actions = agent_brief.get("recommended_next_actions", [])
+    if not isinstance(actions, list):
+        actions = []
+    llm = agent_brief.get("llm", {})
+    if not isinstance(llm, dict):
+        llm = {}
+
+    def list_item(item: Any, key: str, fallback: str) -> str:
+        if isinstance(item, dict):
+            text = item.get(key) or item.get("risk") or item.get("action") or fallback
+            evidence = item.get("evidence_ref", "")
+            note = f" <span class=\"cell-note\">{_escape(evidence)}</span>" if evidence else ""
+            return f"<li>{_escape(text)}{note}</li>"
+        return f"<li>{_escape(item)}</li>"
+
+    risk_items = "".join(list_item(item, "risk", "확인 필요") for item in risks[:3]) or (
+        "<li>현재 agent가 별도 위험을 찾지 못했습니다.</li>"
+    )
+    action_items = "".join(list_item(item, "action", "다음 action 확인") for item in actions[:3]) or (
+        "<li>검토 대기열을 먼저 확인합니다.</li>"
+    )
+    evidence = [
+        ("mode", agent_brief.get("mode", "fallback")),
+        ("LLM", llm.get("status", "not_configured")),
+        ("public gate", source_status.get("public_deploy_decision", "UNKNOWN")),
+        ("queue", source_status.get("queue_total", 0)),
+        ("impact cards", source_status.get("impact_card_rows", 0)),
+        ("blocked units", claim_safety.get("blocked_public_claim_units", 0)),
+    ]
+    evidence_rows = "".join(
+        f"<dt>{_escape(label)}</dt><dd>{_escape(_display(value))}</dd>" for label, value in evidence
+    )
+    agent_mode = agent_brief.get("mode", "fallback")
+    public_gate = source_status.get("public_deploy_decision", "UNKNOWN")
+    return (
+        '<div class="agent-panel">'
+        '<div class="agent-summary">'
+        '<div class="topline">'
+        f"{_pill(agent_mode, 'agent mode: ' + _display(agent_mode))}"
+        f"{_pill(public_gate, 'deterministic gate: ' + str(public_gate))}"
+        "</div>"
+        f'<p class="agent-summary__text">{_escape(agent_brief.get("executive_summary", ""))}</p>'
+        '<div class="agent-lists">'
+        "<div><h3>Top risks</h3>"
+        f'<ol class="agent-list">{risk_items}</ol></div>'
+        "<div><h3>Next actions</h3>"
+        f'<ol class="agent-list">{action_items}</ol></div>'
+        "</div>"
+        '<p class="agent-note">이 agent는 read-only reviewer assistant입니다. 수치와 GO/NO_GO 판단은 기존 deterministic pipeline이 기준입니다.</p>'
+        "</div>"
+        '<aside class="agent-evidence" aria-label="Agent evidence">'
+        "<h3>Evidence lock</h3>"
+        f"<dl>{evidence_rows}</dl>"
+        "</aside>"
+        "</div>"
+    )
+
+
 def _render_impact_rows(impact_cards: list[dict[str, Any]], limit: int) -> list[str]:
     rows = []
     for index, item in enumerate(impact_cards[:limit], start=1):
@@ -1211,6 +1405,26 @@ def _render_policy_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
     return rendered or [_empty_row(5, "영향 정책 비교 산출물이 없습니다.")]
 
 
+def _render_robustness_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
+    guarded = [
+        row
+        for row in rows
+        if row.get("policy") == "confidence_weighted_guarded_capacity"
+    ]
+    rendered = []
+    for item in guarded[:limit]:
+        rendered.append(
+            "<tr>"
+            f"<td>{_id_cell(_display(item.get('scenario', '')), '실현 성과가 아닌 deterministic ordering stress scenario입니다.')}</td>"
+            f"<td>{_escape(item.get('review_capacity', ''))}</td>"
+            f"<td>{_escape(item.get('confidence_adjusted_units', ''))}</td>"
+            f"<td>{_escape(item.get('oracle_regret_units', ''))}</td>"
+            f"<td>{_escape(item.get('selection_stability_jaccard', ''))}</td>"
+            "</tr>"
+        )
+    return rendered or [_empty_row(5, "Reviewer policy robustness 산출물이 없습니다.")]
+
+
 def _action_title(item: dict[str, Any]) -> str:
     station = str(item.get("station_name") or "대상 대여소").strip()
     action = _display(item.get("recommended_action", "monitor"))
@@ -1230,6 +1444,31 @@ def _render_action_plan_rows(rows: list[dict[str, Any]], limit: int) -> list[str
             "</tr>"
         )
     return rendered or [_empty_row(4, "검토 실행 계획 산출물이 없습니다.")]
+
+
+def _evidence_bundle_title(item: dict[str, Any]) -> str:
+    station = str(item.get("station_name") or "대상 대여소").strip()
+    action = _display(item.get("recommended_action", "monitor"))
+    units = item.get("candidate_units_addressed", "")
+    return f"{station}: {action} {units}대 근거"
+
+
+def _render_evidence_bundle_rows(rows: list[dict[str, Any]], limit: int) -> list[str]:
+    rendered = []
+    for item in rows[:limit]:
+        fingerprint = str(item.get("evidence_fingerprint_sha256", ""))
+        fingerprint_note = f"SHA-256 {fingerprint[:12]}…" if fingerprint else "fingerprint 없음"
+        source_age = item.get("source_age_hours")
+        age_label = "확인 불가" if source_age is None else f"{source_age}시간"
+        rendered.append(
+            "<tr>"
+            f"<td>{_id_cell(_evidence_bundle_title(item), fingerprint_note)}</td>"
+            f"<td>{_pill(item.get('freshness_status', ''))}<span class=\"cell-note\">{_escape(age_label)}</span></td>"
+            f"<td>{_pill(item.get('evidence_lock_status', ''))}</td>"
+            f"<td>{_pill(item.get('reviewer_decision', ''))}</td>"
+            "</tr>"
+        )
+    return rendered or [_empty_row(4, "사용 가능한 심의 근거 패킷이 없습니다.")]
 
 
 def _render_queue_rows(
@@ -1286,6 +1525,27 @@ def _render_history_rows(history: list[dict[str, Any]], limit: int) -> list[str]
     return rows or [_empty_row(4, "기록된 승인 이력이 없습니다.")]
 
 
+def _render_audit_integrity_rows(integrity: dict[str, Any]) -> list[str]:
+    checks = [
+        ("Hash chain", integrity.get("chain_valid"), "결정 payload와 이전 event hash 연결"),
+        ("State replay", integrity.get("replay_valid"), "마지막 결정을 현재 queue 상태와 대조"),
+        ("Audit events", integrity.get("event_count", 0), "검증한 reviewer 결정 수"),
+        (
+            "Replay mismatches",
+            integrity.get("replay_mismatch_count", 0),
+            "0이 아니면 queue state 변조 또는 불일치",
+        ),
+    ]
+    return [
+        "<tr>"
+        f"<td>{_escape(name)}</td>"
+        f"<td>{_pill(value)}</td>"
+        f"<td>{_escape(description)}</td>"
+        "</tr>"
+        for name, value, description in checks
+    ]
+
+
 def _render_artifact_rows(artifacts: dict[str, Any]) -> list[str]:
     rows = []
     for name, item in artifacts.items():
@@ -1307,7 +1567,11 @@ def render_dashboard(
     queue: list[dict[str, Any]],
     impact_cards: list[dict[str, Any]],
     impact_policy_audit: list[dict[str, Any]] | None = None,
+    reviewer_policy_robustness: dict[str, Any] | None = None,
     reviewer_action_plan: list[dict[str, Any]] | None = None,
+    reviewer_evidence_bundles: list[dict[str, Any]] | None = None,
+    audit_integrity: dict[str, Any] | None = None,
+    agent_brief: dict[str, Any] | None = None,
     history: list[dict[str, Any]] | None = None,
     summary: dict[str, Any] | None = None,
     ops: dict[str, Any] | None = None,
@@ -1318,7 +1582,10 @@ def render_dashboard(
 
     history = history or []
     impact_policy_audit = impact_policy_audit or []
+    reviewer_policy_robustness = reviewer_policy_robustness or {}
     reviewer_action_plan = reviewer_action_plan or []
+    reviewer_evidence_bundles = reviewer_evidence_bundles or []
+    audit_integrity = audit_integrity or {}
     summary = summary or {}
     ops = ops or {}
     metrics = state.get("metrics", {})
@@ -1333,8 +1600,12 @@ def render_dashboard(
     candidate_units = metrics.get("impact_candidate_units_addressed", 0)
     blocked_units = metrics.get("impact_public_claim_blocked_units", 0)
     action_plan_units = metrics.get("reviewer_action_plan_candidate_units", 0)
+    fresh_bundle_rows = metrics.get("reviewer_evidence_fresh_rows", 0)
+    robustness_summary = reviewer_policy_robustness.get("summary", {})
+    robustness_rows = reviewer_policy_robustness.get("rows", [])
     p0_pending = _priority_count(queue, "P0")
     release_label = _release_label(public_deploy)
+    audit_status = str(audit_integrity.get("status", "unknown")).upper()
 
     action_header = ["무엇을 검토하나", "긴급도", "처리 상태", "확인 필요 이유"]
     if include_actions:
@@ -1346,6 +1617,24 @@ def render_dashboard(
         _metric("따릉이 후보 조치", metrics.get("impact_card_rows", 0), f"예상 영향 {candidate_units} 단위"),
         _metric("차단한 공개 claim", blocked_units, "대외 성과 주장 금지 단위", "risk" if blocked_units else "good"),
         _metric("검토 계획", len(reviewer_action_plan), f"상위 계획 {action_plan_units} 단위"),
+        _metric(
+            "Stress 우위율",
+            f"{_as_float(robustness_summary.get('guarded_dominance_rate')):.0%}",
+            f"선택 안정성 {_as_float(robustness_summary.get('guarded_mean_selection_stability_jaccard')):.2f}",
+            "good" if robustness_rows else "risk",
+        ),
+        _metric(
+            "최신 근거 패킷",
+            f"{fresh_bundle_rows}/{len(reviewer_evidence_bundles)}",
+            "freshness SLA와 SHA-256 잠금",
+            "good" if reviewer_evidence_bundles and fresh_bundle_rows == len(reviewer_evidence_bundles) else "risk",
+        ),
+        _metric(
+            "감사 무결성",
+            audit_status,
+            f"chain/replay · {audit_integrity.get('event_count', 0)} events",
+            "good" if audit_status == "PASS" else "risk",
+        ),
         _metric("공개 배포", release_label, "외부 공개 가능 여부", "good" if public_deploy == "GO" else "risk"),
     ]
 
@@ -1395,6 +1684,7 @@ def render_dashboard(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f5f8c'/%3E%3Cpath d='M18 20h28v8H18zM18 36h18v8H18z' fill='white'/%3E%3C/svg%3E">
   <title>DecisionOps Control Tower</title>
   <style>{DASHBOARD_CSS}</style>
 </head>
@@ -1419,7 +1709,10 @@ def render_dashboard(
               <a class="button" href="#impact-map">지도에서 보기</a>
               <a class="button" href="#impact-cards">따릉이 후보 조치 보기</a>
               <a class="button" href="#policy-audit">정책 비교 보기</a>
+              <a class="button" href="#policy-robustness">Stress test 보기</a>
               <a class="button" href="#action-plan">검토 계획 보기</a>
+              <a class="button" href="#evidence-bundles">근거 패킷 보기</a>
+              <a class="button" href="#approval-audit-integrity">감사 무결성 보기</a>
               <a class="button" href="#blockers">보류 이유 보기</a>
             </nav>
           </div>
@@ -1452,6 +1745,19 @@ def render_dashboard(
           </div>
         </div>
         <div class="metric-grid">{''.join(metric_cards)}</div>
+      </section>
+
+      <section class="section" id="ai-reviewer-agent">
+        <div class="section__header">
+          <div>
+            <h2>AI Reviewer Brief</h2>
+            <p class="section__intro">
+              Agent가 health/API/artifact를 읽고 다음 검토 action을 요약합니다.
+              판단과 수치의 원천은 기존 deterministic gate입니다.
+            </p>
+          </div>
+        </div>
+        {_render_agent_brief(agent_brief)}
       </section>
 
       <section class="section" id="blockers">
@@ -1513,6 +1819,24 @@ def render_dashboard(
         )}
       </section>
 
+      <section class="section" id="policy-robustness">
+        <div class="section__header">
+          <div>
+            <h2>Reviewer policy robustness</h2>
+            <p class="section__intro">
+              후보 효과 jitter, confidence 하락, 상위 source 누락과 검토 용량 변화에서
+              confidence-weighted guarded ordering의 regret와 선택 안정성을 비교합니다.
+              이 값은 실현 효과나 인과 추정치가 아닙니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(len(robustness_rows), f"{len(robustness_rows)}개 비교")}</div>
+        </div>
+        {_table(
+            ["Stress scenario", "검토 용량", "Confidence 조정 단위", "Oracle regret", "선택 안정성"],
+            _render_robustness_rows(robustness_rows, 12),
+        )}
+      </section>
+
       <section class="section" id="action-plan">
         <div class="section__header">
           <div>
@@ -1527,6 +1851,23 @@ def render_dashboard(
         {_table(
             ["먼저 볼 후보", "긴급도", "누적 후보 단위", "권장 결정"],
             _render_action_plan_rows(reviewer_action_plan, 12),
+        )}
+      </section>
+
+      <section class="section" id="evidence-bundles">
+        <div class="section__header">
+          <div>
+            <h2>심의 근거 패킷</h2>
+            <p class="section__intro">
+              Impact card와 검토 계획을 하나의 근거 계약으로 묶고 관측 시각, freshness SLA,
+              SHA-256 fingerprint를 함께 확인합니다. 최신성 잠금에 실패하면 자동으로 근거 요청 상태가 됩니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(len(reviewer_evidence_bundles), f"{len(reviewer_evidence_bundles)}건")}</div>
+        </div>
+        {_table(
+            ["검토 근거", "최신성", "근거 잠금", "권장 결정"],
+            _render_evidence_bundle_rows(reviewer_evidence_bundles, 12),
         )}
       </section>
 
@@ -1553,6 +1894,20 @@ def render_dashboard(
           </div>
         </div>
         {_table(["시간", "검토 기록", "결정", "검토자"], _render_history_rows(history, 12))}
+      </section>
+
+      <section class="section" id="approval-audit-integrity">
+        <div class="section__header">
+          <div>
+            <h2>승인 감사 무결성</h2>
+            <p class="section__intro">
+              각 reviewer 결정을 이전 event hash에 연결하고, 이력을 replay해 현재 queue 상태와 대조합니다.
+              이는 local tamper evidence이며 전자서명이나 외부 공증은 아닙니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(audit_status)}</div>
+        </div>
+        {_table(["검증", "결과", "의미"], _render_audit_integrity_rows(audit_integrity))}
       </section>
 
       <section class="section" id="operations">

@@ -6,6 +6,7 @@
 2. Human review queue가 실제 product workflow의 중심 객체가 될 수 있는가?
 3. Demo-ready와 public-deploy-ready를 분리하면 과장된 포트폴리오 배포 주장을 줄일 수 있는가?
 4. 무검토 공개 기준선과 guarded policy를 비교하면 미검증 impact claim을 정량적으로 차단할 수 있는가?
+5. Capacity, unit estimate, confidence, source dropout stress에서 safety-first reviewer ranking이 유지되는가?
 
 ## Evidence Plan
 
@@ -15,7 +16,7 @@
 - Main model/system: guarded decision agent와 Control Tower release rules.
 - Ablation: API/write persistence 없는 read-only seed와 FastAPI/SQLite approval slice를 비교한다.
 - Controlled comparison: `unsafe_auto_publish` 기준선과 `guarded_all_review`, `source_order_capacity`, `impact_guarded_capacity`를 같은 impact card 단위로 비교한다.
-- Uncertainty/robustness: bike-share readiness `NO_GO`, missing artifact, empty queue, holdout 실패를 blocker로 둔다.
+- Uncertainty/robustness: readiness blocker와 함께 4개 deterministic stress scenario, capacity 3/6/8, 3개 ordering policy의 stability/regret를 비교한다.
 - Failure audit: `control_state.json`의 blocker list와 review queue 상태를 감사 표면으로 사용한다.
 - Decision impact: public deploy 여부, reviewer approval backlog, public-claim blocked units, capacity-ranked action plan을 한 화면에서 판단한다.
 
