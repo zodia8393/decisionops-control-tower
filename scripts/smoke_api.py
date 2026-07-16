@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import secrets
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -85,7 +86,7 @@ def _smoke_basic(args: argparse.Namespace) -> None:
 
 
 def _smoke_auth(args: argparse.Namespace) -> None:
-    token = "test-smoke-token"
+    token = secrets.token_urlsafe(32)
     client = TestClient(
         create_app(
             output_root=Path(args.output_root),
