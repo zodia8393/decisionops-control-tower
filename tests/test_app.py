@@ -326,6 +326,57 @@ def test_role_config_rejects_invalid_roles(tmp_path):
         create_test_app(tmp_path, auth_roles={"": "viewer"})
 
 
+def test_hosted_deployment_fails_closed_without_write_auth(tmp_path):
+    with pytest.raises(ValueError, match="requires write authentication"):
+        create_test_app(tmp_path, auth_roles={}, deployment_mode="hosted")
+
+    with pytest.raises(ValueError, match="reviewer or admin"):
+        create_test_app(
+            tmp_path,
+            auth_roles={"viewer-credential-long-enough": "viewer"},
+            deployment_mode="hosted",
+        )
+
+
+def test_hosted_deployment_rejects_short_credentials(tmp_path):
+    with pytest.raises(ValueError, match="at least 24 characters"):
+        create_test_app(
+            tmp_path,
+            auth_roles={"short-reviewer-token": "reviewer"},
+            deployment_mode="hosted",
+        )
+
+
+def test_hosted_deployment_hashes_credentials_and_accepts_write_role(tmp_path):
+    reviewer_credential = "reviewer-credential-with-32-characters"
+    app = create_test_app(
+        tmp_path,
+        auth_roles={reviewer_credential: "reviewer"},
+        deployment_mode="hosted",
+    )
+    client = TestClient(app)
+
+    assert reviewer_credential not in app.state.auth_roles
+    assert all(len(digest) == 64 for digest in app.state.auth_roles)
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json()["deployment_mode"] == "hosted"
+    assert health.json()["auth_required"] is True
+
+    control_id = client.get("/api/review-queue").json()["items"][0]["control_id"]
+    accepted = client.post(
+        f"/api/review-queue/{control_id}/decision",
+        headers={"X-Control-Tower-Token": reviewer_credential},
+        json={"decision": "approve", "reviewer": "pytest_reviewer"},
+    )
+    assert accepted.status_code == 200
+
+
+def test_deployment_mode_rejects_unknown_value(tmp_path):
+    with pytest.raises(ValueError, match="CONTROL_TOWER_DEPLOYMENT_MODE"):
+        create_test_app(tmp_path, deployment_mode="public-ish")
+
+
 def test_ops_metrics_report_artifact_health(tmp_path):
     client = TestClient(create_test_app(tmp_path))
 

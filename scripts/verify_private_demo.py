@@ -13,16 +13,12 @@ from urllib.request import Request, urlopen
 
 from fastapi.testclient import TestClient
 
-from decisionops_control_tower.app import create_app
+from decisionops_control_tower.app import WRITE_ROLES, _parse_role_tokens, create_app
 from decisionops_control_tower.pipeline import (
     DEFAULT_BIKE_ROOT,
     DEFAULT_OUTPUT_ROOT,
     DEFAULT_WORKBENCH_ROOT,
 )
-
-
-VALID_ROLES = {"viewer", "reviewer", "admin"}
-WRITE_ROLES = {"reviewer", "admin"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,29 +30,25 @@ def parse_args() -> argparse.Namespace:
         "--url",
         help="Optional live server base URL, for example http://127.0.0.1:8093.",
     )
+    parser.add_argument(
+        "--exercise-write",
+        action="store_true",
+        help="Record one needs_more_evidence decision and verify history/audit replay.",
+    )
     return parser.parse_args()
 
 
 def _configured_credentials() -> dict[str, str]:
-    credentials: dict[str, str] = {}
     raw_roles = os.environ.get("CONTROL_TOWER_ROLE_TOKENS", "").strip()
-    for chunk in raw_roles.split(","):
-        item = chunk.strip()
-        if not item:
-            continue
-        separator = ":" if ":" in item else "=" if "=" in item else ""
-        if not separator:
-            raise AssertionError("CONTROL_TOWER_ROLE_TOKENS must use role:credential chunks")
-        role, credential = [part.strip() for part in item.split(separator, 1)]
-        role = role.lower()
-        if role not in VALID_ROLES:
-            raise AssertionError(f"unsupported private demo role: {role}")
-        if not credential:
-            raise AssertionError("empty private demo credential is not allowed")
-        credentials[credential] = role
+    try:
+        credentials = _parse_role_tokens(raw_roles)
+    except ValueError as exc:
+        raise AssertionError(str(exc)) from exc
 
     legacy = os.environ.get("CONTROL_TOWER_API_TOKEN", "").strip()
     if legacy:
+        if legacy in credentials:
+            raise AssertionError("duplicate control tower credential is not allowed")
         credentials[legacy] = "reviewer"
     return credentials
 
@@ -99,6 +91,7 @@ def _verify_with_testclient(
     bike_root: Path,
     workbench_root: Path,
     credentials: dict[str, str],
+    exercise_write: bool,
 ) -> dict[str, Any]:
     client = TestClient(
         create_app(
@@ -136,6 +129,30 @@ def _verify_with_testclient(
         json={"decision": "approve", "reviewer": "private_demo_smoke"},
     )
 
+    write_exercise = None
+    if exercise_write:
+        control_id = queue.json()["items"][0]["control_id"]
+        recorded = client.post(
+            f"/api/review-queue/{control_id}/decision",
+            headers={"X-Control-Tower-Token": write_token or ""},
+            json={
+                "decision": "needs_more_evidence",
+                "reviewer": "private_demo_smoke",
+                "note": "authenticated private demo exercise",
+            },
+        )
+        history = client.get("/api/review-history").json()
+        audit = client.get("/api/approval-audit-integrity").json()
+        write_exercise = {
+            "status": recorded.status_code,
+            "history_verified": any(
+                item.get("control_id") == control_id
+                and item.get("decision") == "needs_more_evidence"
+                for item in history.get("items", [])
+            ),
+            "audit_integrity_status": audit.get("status"),
+        }
+
     return _assert_private_demo_result(
         health.json(),
         queue.json(),
@@ -143,10 +160,15 @@ def _verify_with_testclient(
         missing.status_code,
         accepted.status_code,
         viewer_status,
+        write_exercise,
     )
 
 
-def _verify_with_url(base_url: str, credentials: dict[str, str]) -> dict[str, Any]:
+def _verify_with_url(
+    base_url: str,
+    credentials: dict[str, str],
+    exercise_write: bool,
+) -> dict[str, Any]:
     health_status, health = _request_json(base_url, "GET", "/health")
     queue_status, queue = _request_json(base_url, "GET", "/api/review-queue")
     impact_status, impact = _request_json(base_url, "GET", "/api/impact-cards")
@@ -180,6 +202,37 @@ def _verify_with_url(base_url: str, credentials: dict[str, str]) -> dict[str, An
         payload={"decision": "approve", "reviewer": "private_demo_smoke"},
     )
 
+    write_exercise = None
+    if exercise_write:
+        control_id = queue["items"][0]["control_id"]
+        recorded_status, _ = _request_json(
+            base_url,
+            "POST",
+            f"/api/review-queue/{control_id}/decision",
+            token=write_token,
+            payload={
+                "decision": "needs_more_evidence",
+                "reviewer": "private_demo_smoke",
+                "note": "authenticated private demo exercise",
+            },
+        )
+        history_status, history = _request_json(base_url, "GET", "/api/review-history")
+        audit_status, audit = _request_json(
+            base_url,
+            "GET",
+            "/api/approval-audit-integrity",
+        )
+        write_exercise = {
+            "status": recorded_status,
+            "history_verified": history_status == 200
+            and any(
+                item.get("control_id") == control_id
+                and item.get("decision") == "needs_more_evidence"
+                for item in history.get("items", [])
+            ),
+            "audit_integrity_status": audit.get("status") if audit_status == 200 else None,
+        }
+
     return _assert_private_demo_result(
         health,
         queue,
@@ -187,6 +240,7 @@ def _verify_with_url(base_url: str, credentials: dict[str, str]) -> dict[str, An
         missing_status,
         accepted_status,
         viewer_status,
+        write_exercise,
     )
 
 
@@ -197,6 +251,7 @@ def _assert_private_demo_result(
     missing_status: int,
     accepted_status: int,
     viewer_status: int | None,
+    write_exercise: dict[str, Any] | None,
 ) -> dict[str, Any]:
     if not health.get("auth_required"):
         raise AssertionError("private demo requires CONTROL_TOWER_ROLE_TOKENS or CONTROL_TOWER_API_TOKEN")
@@ -212,6 +267,15 @@ def _assert_private_demo_result(
         raise AssertionError(
             f"reviewer/admin credential returned {accepted_status}, expected 404 for fake control_id"
         )
+    if write_exercise is not None:
+        if write_exercise["status"] != 200:
+            raise AssertionError(
+                f"authenticated write exercise returned {write_exercise['status']}, expected 200"
+            )
+        if not write_exercise["history_verified"]:
+            raise AssertionError("authenticated write was not found in approval history")
+        if write_exercise["audit_integrity_status"] != "pass":
+            raise AssertionError("approval audit integrity failed after authenticated write")
     return {
         "status": "ok",
         "auth_required": True,
@@ -221,6 +285,13 @@ def _assert_private_demo_result(
         "missing_credential_status": missing_status,
         "viewer_write_status": viewer_status,
         "write_credential_status": accepted_status,
+        "write_exercise_status": None if write_exercise is None else write_exercise["status"],
+        "write_history_verified": None
+        if write_exercise is None
+        else write_exercise["history_verified"],
+        "audit_integrity_status": None
+        if write_exercise is None
+        else write_exercise["audit_integrity_status"],
         "public_deploy_decision": health.get("public_deploy_decision"),
     }
 
@@ -231,6 +302,7 @@ def verify_private_demo(
     workbench_root: Path,
     *,
     url: str | None = None,
+    exercise_write: bool = False,
 ) -> dict[str, Any]:
     credentials = _configured_credentials()
     if not credentials:
@@ -238,12 +310,18 @@ def verify_private_demo(
     if not _credential_for(credentials, WRITE_ROLES):
         raise AssertionError("private demo needs at least one reviewer or admin credential")
     if url:
-        return _verify_with_url(url, credentials)
-    return _verify_with_testclient(output_root, bike_root, workbench_root, credentials)
+        return _verify_with_url(url, credentials, exercise_write)
+    return _verify_with_testclient(
+        output_root,
+        bike_root,
+        workbench_root,
+        credentials,
+        exercise_write,
+    )
 
 
 def format_summary(payload: dict[str, Any]) -> str:
-    return (
+    summary = (
         "private demo verification complete: "
         f"status={payload['status']}, "
         f"roles={','.join(payload['configured_roles'])}, "
@@ -254,6 +332,13 @@ def format_summary(payload: dict[str, Any]) -> str:
         f"write_credential_status={payload['write_credential_status']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"
     )
+    if payload["write_exercise_status"] is not None:
+        summary += (
+            f", write_exercise_status={payload['write_exercise_status']}, "
+            f"write_history_verified={payload['write_history_verified']}, "
+            f"audit_integrity_status={payload['audit_integrity_status']}"
+        )
+    return summary
 
 
 def main() -> None:
@@ -263,6 +348,7 @@ def main() -> None:
         Path(args.bike_root),
         Path(args.workbench_root),
         url=args.url,
+        exercise_write=args.exercise_write,
     )
     print(format_summary(payload))
 

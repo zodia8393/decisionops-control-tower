@@ -6,7 +6,7 @@
 
 ## 전제
 
-- Repo: `/workspace/prj/data-scientist-career/decisionops-control-tower`
+- Repo: `/workspace/prj/personal/data-scientist-career/decisionops-control-tower`
 - 기본 앱 URL: `http://127.0.0.1:8093`
 - 기본 output root: `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower`
 - 공개 배포 판단은 upstream validation이 끝날 때까지 `NO_GO`로 유지한다.
@@ -25,14 +25,15 @@
 
 ```bash
 export CONTROL_TOWER_ROLE_TOKENS="viewer:<viewer-credential>,reviewer:<reviewer-credential>,admin:<admin-credential>"
+export CONTROL_TOWER_DEPLOYMENT_MODE=hosted
 ```
 
-legacy 단일 reviewer token도 지원하지만, 시연용으로는 role 구분이 보이는 `CONTROL_TOWER_ROLE_TOKENS`를 우선 사용한다.
+Hosted mode에서는 reviewer/admin credential이 하나 이상 필요하고 각 credential은 최소 24자여야 한다. Runtime은 원문 credential 대신 SHA-256 digest만 보관한다. Legacy 단일 reviewer token도 지원하지만 role 구분이 보이는 `CONTROL_TOWER_ROLE_TOKENS`를 우선 사용한다.
 
 ## 2. 산출물 생성과 기본 검증
 
 ```bash
-cd /workspace/prj/data-scientist-career/decisionops-control-tower
+cd /workspace/prj/personal/data-scientist-career/decisionops-control-tower
 scripts/run_all.sh
 ```
 
@@ -47,7 +48,7 @@ scripts/run_all.sh
 서버를 띄우기 전 in-process로 검증:
 
 ```bash
-PYTHONPATH=src scripts/verify_private_demo.py
+PYTHONPATH=src scripts/verify_private_demo.py --exercise-write
 ```
 
 검증 항목:
@@ -55,7 +56,8 @@ PYTHONPATH=src scripts/verify_private_demo.py
 - `auth_required=True`
 - credential 없는 write 요청은 `401`
 - `viewer` write 요청은 `403`
-- `reviewer` 또는 `admin` write credential은 인증을 통과하고, 존재하지 않는 fake `control_id`에 대해 `404`
+- `reviewer` 또는 `admin` write credential은 인증을 통과하고 실제 `needs_more_evidence` 결정을 local SQLite에 기록
+- 기록이 approval history와 hash-chain/state replay에 반영되고 integrity `pass`
 - queue와 impact card가 비어 있지 않음
 - 출력에 credential 값이 포함되지 않음
 
@@ -68,7 +70,7 @@ HOST=127.0.0.1 PORT=8093 scripts/run_server.sh
 다른 터미널에서 live server 검증:
 
 ```bash
-PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
+PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093 --exercise-write
 curl -fsS http://127.0.0.1:8093/health | python3 -m json.tool
 ```
 

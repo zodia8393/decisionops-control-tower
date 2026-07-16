@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -42,6 +44,8 @@ class DecisionRequest(BaseModel):
 LOGGER = logging.getLogger("decisionops_control_tower")
 VALID_ROLES = {"viewer", "reviewer", "admin"}
 WRITE_ROLES = {"reviewer", "admin"}
+VALID_DEPLOYMENT_MODES = {"local", "hosted"}
+MIN_HOSTED_CREDENTIAL_LENGTH = 24
 
 
 def _configure_logging() -> None:
@@ -79,16 +83,33 @@ def _parse_role_tokens(raw: str) -> dict[str, str]:
             raise ValueError(f"unsupported control tower role: {role}")
         if not credential:
             raise ValueError("empty control tower credential is not allowed")
+        if credential in roles:
+            raise ValueError("duplicate control tower credential is not allowed")
         roles[credential] = role
     return roles
+
+
+def _credential_digest(credential: str) -> str:
+    return hashlib.sha256(credential.encode("utf-8")).hexdigest()
+
+
+def _deployment_mode(value: str | None) -> str:
+    mode = (value or os.environ.get("CONTROL_TOWER_DEPLOYMENT_MODE", "local")).strip().lower()
+    if mode not in VALID_DEPLOYMENT_MODES:
+        raise ValueError(
+            "CONTROL_TOWER_DEPLOYMENT_MODE must be one of: "
+            + ", ".join(sorted(VALID_DEPLOYMENT_MODES))
+        )
+    return mode
 
 
 def _configured_auth_roles(
     auth_token: str | None,
     auth_roles: dict[str, str] | None,
+    deployment_mode: str,
 ) -> dict[str, str]:
     if auth_roles is not None:
-        roles: dict[str, str] = {}
+        raw_roles: dict[str, str] = {}
         for credential, role in auth_roles.items():
             credential = credential.strip()
             role = role.strip().lower()
@@ -96,13 +117,26 @@ def _configured_auth_roles(
                 raise ValueError("empty control tower credential is not allowed")
             if role not in VALID_ROLES:
                 raise ValueError(f"unsupported control tower role: {role}")
-            roles[credential] = role
-        return roles
-    roles = _parse_role_tokens(os.environ.get("CONTROL_TOWER_ROLE_TOKENS", ""))
-    legacy_token = _env_token() if auth_token is None else auth_token.strip()
-    if legacy_token:
-        roles[legacy_token] = "reviewer"
-    return roles
+            raw_roles[credential] = role
+    else:
+        raw_roles = _parse_role_tokens(os.environ.get("CONTROL_TOWER_ROLE_TOKENS", ""))
+        legacy_token = _env_token() if auth_token is None else auth_token.strip()
+        if legacy_token:
+            if legacy_token in raw_roles:
+                raise ValueError("duplicate control tower credential is not allowed")
+            raw_roles[legacy_token] = "reviewer"
+
+    if deployment_mode == "hosted":
+        if not raw_roles:
+            raise ValueError("hosted deployment requires write authentication credentials")
+        if not set(raw_roles.values()).intersection(WRITE_ROLES):
+            raise ValueError("hosted deployment requires a reviewer or admin credential")
+        if any(len(credential) < MIN_HOSTED_CREDENTIAL_LENGTH for credential in raw_roles):
+            raise ValueError(
+                f"hosted credentials must be at least {MIN_HOSTED_CREDENTIAL_LENGTH} characters"
+            )
+
+    return {_credential_digest(credential): role for credential, role in raw_roles.items()}
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -146,6 +180,7 @@ def create_app(
     refresh_artifacts: bool = True,
     auth_token: str | None = None,
     auth_roles: dict[str, str] | None = None,
+    deployment_mode: str | None = None,
 ) -> FastAPI:
     _configure_logging()
     root = Path(output_root) if output_root is not None else _env_path("OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT)
@@ -155,6 +190,7 @@ def create_app(
         if workbench_root is not None
         else _env_path("WORKBENCH_ROOT", DEFAULT_WORKBENCH_ROOT)
     )
+    runtime_mode = _deployment_mode(deployment_mode)
     app = FastAPI(
         title="DecisionOps Control Tower",
         version="0.1.0",
@@ -164,7 +200,8 @@ def create_app(
     app.state.bike_root = bike
     app.state.workbench_root = workbench
     app.state.refresh_artifacts = refresh_artifacts
-    app.state.auth_roles = _configured_auth_roles(auth_token, auth_roles)
+    app.state.deployment_mode = runtime_mode
+    app.state.auth_roles = _configured_auth_roles(auth_token, auth_roles, runtime_mode)
     app.state.started_at = time.time()
     app.state.ready = False
 
@@ -220,10 +257,11 @@ def create_app(
         roles = app.state.auth_roles
         if not roles:
             return "demo"
-        role = roles.get(x_control_tower_token or "")
-        if role is None:
-            raise HTTPException(status_code=401, detail="invalid or missing control tower credential")
-        return role
+        candidate_digest = _credential_digest((x_control_tower_token or "").strip())
+        for configured_digest, role in roles.items():
+            if hmac.compare_digest(candidate_digest, configured_digest):
+                return role
+        raise HTTPException(status_code=401, detail="invalid or missing control tower credential")
 
     def require_write_role(role: str = Depends(resolve_role)) -> str:
         if role == "demo":
@@ -271,6 +309,7 @@ def create_app(
             "uptime_seconds": round(time.time() - app.state.started_at, 3),
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
+            "deployment_mode": app.state.deployment_mode,
             "refresh_artifacts": bool(app.state.refresh_artifacts),
             "public_deploy_decision": state.get("public_deploy_decision", "UNKNOWN"),
             "demo_mode_ready": bool(state.get("demo_mode_ready")),
@@ -354,6 +393,7 @@ def create_app(
             "approval_audit_integrity": verify_audit_integrity(app.state.output_root),
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
+            "deployment_mode": app.state.deployment_mode,
             "database": str(database_path(app.state.output_root)),
             "output_root": str(app.state.output_root),
         }

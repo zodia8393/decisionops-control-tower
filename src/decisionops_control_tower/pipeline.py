@@ -1124,10 +1124,10 @@ def _build_api_contract() -> dict[str, Any]:
             {"method": "GET", "path": "/api/ops-metrics", "returns": "runtime, auth, queue, and artifact health"},
             {"method": "GET", "path": "/dashboard", "returns": "operator dashboard with approval actions"},
         ],
-        "write_policy": "approval POST requires reviewer/admin role when CONTROL_TOWER_ROLE_TOKENS or CONTROL_TOWER_API_TOKEN is configured and writes only to local SQLite under OUTPUT_ROOT; it never dispatches field actions",
+        "write_policy": "hosted mode fails startup unless a strong reviewer/admin credential is configured; approval POST writes only to local SQLite under OUTPUT_ROOT and never dispatches field actions",
         "logging_policy": "FastAPI middleware emits structured JSON request logs without secret/header values",
         "monitoring_policy": "scripts/write_monitoring_snapshot.py writes ops_metrics_snapshot.json and appends ops_metrics_history.jsonl",
-        "deployment_policy": "scripts/write_deployment_readiness.py writes separate local/container/hosted/public GO/NO_GO decisions without credential values",
+        "deployment_policy": "GitHub Pages publishes a read-only snapshot; scripts/write_deployment_readiness.py writes separate local/container/hosted/public GO/NO_GO decisions without credential values",
     }
 
 

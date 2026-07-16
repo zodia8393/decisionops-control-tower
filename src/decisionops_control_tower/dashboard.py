@@ -1679,6 +1679,18 @@ def render_dashboard(
   </script>
 """
 
+    snapshot_notice = ""
+    if not include_actions:
+        snapshot_notice = """
+      <section class="section" aria-label="공개 데모 안내">
+        <div class="callout callout--good">
+          <strong>Recorded read-only snapshot</strong><br>
+          이 GitHub Pages 화면은 public-safe fixture로 생성한 검토 결과입니다.
+          승인 버튼과 API write를 포함하지 않으며, 실제 reviewer approval은 인증된 private demo에서만 실행합니다.
+        </div>
+      </section>
+"""
+
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -1737,6 +1749,7 @@ def render_dashboard(
       </div>
     </header>
     <main class="main">
+      {snapshot_notice}
       <section class="section" aria-label="의사결정 지표">
         <div class="section__header">
           <div>

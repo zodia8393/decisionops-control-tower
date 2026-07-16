@@ -2,7 +2,7 @@
 
 ## Product Surface
 
-실행 surface는 `scripts/run_all.sh`가 제공하는 batch pipeline/CLI, FastAPI server, SQLite approval persistence, chained audit/replay verifier, RBAC-lite write auth, structured JSON request logging, monitoring snapshot, deployment readiness gate, policy audit, reviewer action plan, freshness-gated evidence bundle, AI Reviewer Agent, reviewer dashboard입니다. Public deploy는 upstream readiness가 `GO`가 될 때까지 차단합니다.
+실행 surface는 `scripts/run_all.sh`가 제공하는 batch pipeline/CLI, FastAPI server, SQLite approval persistence, chained audit/replay verifier, hosted fail-closed write auth, structured JSON request logging, monitoring snapshot, deployment readiness gate, policy audit, reviewer action plan, freshness-gated evidence bundle, AI Reviewer Agent, reviewer dashboard입니다. GitHub Pages는 write control이 제거된 recorded snapshot만 공개합니다.
 
 AI Reviewer Agent는 `/api/agent/reviewer-brief`와 `/api/agent/candidate/{candidate_id}/review-notes`로 노출되는 read-only reviewer assistant입니다. Agent는 health/API/artifact를 근거로 요약과 다음 action을 만들지만 approval write, 현장 dispatch, `GO/NO_GO` 변경, 신규 효과 수치 생성은 하지 않습니다. LLM 미설정 또는 호출 실패 시 deterministic fallback brief를 반환합니다.
 
@@ -38,7 +38,7 @@ Stage 1 impact simulation artifacts
 
 ## Runtime
 
-- Source root: `/workspace/prj/data-scientist-career/decisionops-control-tower`
+- Source root: `/workspace/prj/personal/data-scientist-career/decisionops-control-tower`
 - Artifact root: `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower`
 - Config/env: `OUTPUT_ROOT`, optional `--bike-root`, optional `--workbench-root`
 - Logging/error handling: CLI summary plus blocker list in `reports/control_state.json`
@@ -51,12 +51,14 @@ Stage 1 impact simulation artifacts
 - Reviewer action plan: `/api/reviewer-action-plan`, `reports/reviewer_action_plan.csv`, `reports/reviewer_action_plan.json`
 - Reviewer evidence bundles: `/api/reviewer-evidence-bundles`, `reports/reviewer_evidence_bundles.csv`, `reports/reviewer_evidence_bundles.json`
 - Approval audit integrity: `/api/approval-audit-integrity`, `reports/approval_audit_integrity.json`
-- Write auth: `CONTROL_TOWER_ROLE_TOKENS` set -> approval POST requires `reviewer` or `admin` role via `X-Control-Tower-Token`
+- Write auth: `CONTROL_TOWER_ROLE_TOKENS` set -> approval POST requires `reviewer` or `admin` role via `X-Control-Tower-Token`; runtime stores only SHA-256 credential digests
+- Hosted startup gate: `CONTROL_TOWER_DEPLOYMENT_MODE=hosted` requires a reviewer/admin credential of at least 24 characters and fails before serving when the contract is not met
+- Public snapshot: `https://zodia8393.github.io/decisionops-control-tower/`, generated with actions/script removed and monitored daily
 - Structured logs: request logs are JSON lines and include request id, method, path, status, duration
 - Monitoring artifact: `reports/ops_metrics_snapshot.json` and append-only `reports/ops_metrics_history.jsonl`
 - Deployment gate: `reports/deployment_readiness.json` and `reports/deployment_readiness.md` split local/container/hosted/public decisions
 - Container packaging: `Dockerfile`, `compose.yaml`, `scripts/check_docker_ready.py`, `scripts/verify_docker_deployment.sh`, `scripts/verify_compose_deployment.sh`
-- Deployment/runbook: demo product slice exists; public deploy remains `NO_GO` until upstream readiness and production hardening are complete
+- Deployment/runbook: public read-only snapshot is `GO`; hosted write API remains `NO_GO` until a target secret is configured and verified
 
 ## Operations
 

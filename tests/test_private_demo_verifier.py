@@ -27,6 +27,7 @@ def test_private_demo_verifier_checks_auth_boundary_without_printing_tokens(
         tmp_path,
         tmp_path / "missing-bike-root",
         tmp_path / "missing-workbench-root",
+        exercise_write=True,
     )
     summary = format_summary(payload)
 
@@ -37,6 +38,9 @@ def test_private_demo_verifier_checks_auth_boundary_without_printing_tokens(
     assert payload["missing_credential_status"] == 401
     assert payload["viewer_write_status"] == 403
     assert payload["write_credential_status"] == 404
+    assert payload["write_exercise_status"] == 200
+    assert payload["write_history_verified"] is True
+    assert payload["audit_integrity_status"] == "pass"
     assert "viewer-secret" not in summary
     assert "reviewer-secret" not in summary
     assert "admin-secret" not in summary
