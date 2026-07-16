@@ -1681,12 +1681,19 @@ def render_dashboard(
 
     snapshot_notice = ""
     if not include_actions:
-        snapshot_notice = """
+        freshness_note = ""
+        if reviewer_evidence_bundles and fresh_bundle_rows < len(reviewer_evidence_bundles):
+            freshness_note = (
+                f"<br>현재 최신 근거는 {fresh_bundle_rows}/{len(reviewer_evidence_bundles)}건입니다. "
+                "나머지는 stale/missing evidence 차단 시나리오로, 실제 approval 대상에서 제외됩니다."
+            )
+        snapshot_notice = f"""
       <section class="section" aria-label="공개 데모 안내">
         <div class="callout callout--good">
           <strong>Recorded read-only snapshot</strong><br>
           이 GitHub Pages 화면은 public-safe fixture로 생성한 검토 결과입니다.
           승인 버튼과 API write를 포함하지 않으며, 실제 reviewer approval은 인증된 private demo에서만 실행합니다.
+          {freshness_note}
         </div>
       </section>
 """

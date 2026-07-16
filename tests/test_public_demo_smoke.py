@@ -53,6 +53,24 @@ def test_static_dashboard_satisfies_public_read_only_contract():
     assert result == {"required_marker_count": 3, "forbidden_marker_count": 3}
 
 
+def test_static_dashboard_explains_non_fresh_evidence():
+    html = render_dashboard(
+        state={
+            "demo_mode_ready": True,
+            "public_deploy_decision": "NO_GO",
+            "metrics": {"reviewer_evidence_fresh_rows": 0},
+        },
+        queue=[],
+        impact_cards=[],
+        reviewer_evidence_bundles=[{"freshness_status": "missing_timestamp"}],
+        include_actions=False,
+        include_script=False,
+    )
+
+    assert "현재 최신 근거는 0/1건" in html
+    assert "stale/missing evidence 차단 시나리오" in html
+
+
 def test_public_demo_smoke_rejects_write_controls():
     with pytest.raises(PublicDemoSmokeError, match="exposes write markers"):
         validate_demo_html(static_dashboard() + '<button data-decision="approve">approve</button>')

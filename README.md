@@ -57,7 +57,7 @@
 | Public read-only demo | `GO` | GitHub Pages, write/API token 없음 |
 | Hosted write API | `NO_GO` | 배포 target secret 설정 필요 |
 | Evidence-backed quality | 96.0 | fresh JUnit·robustness·freshness·audit artifact가 모두 있을 때만 활성화 |
-| Verified tests | 41 passed | public read-only contract, hosted fail-closed, approval E2E, audit, API 포함 |
+| Verified tests | 42 passed | public read-only contract, hosted fail-closed, approval E2E, audit, API 포함 |
 
 ## 얻은 인사이트
 
