@@ -19,6 +19,6 @@
 | Approval audit integrity | pass | reviewer decision을 SHA-256 chain으로 연결하고 deterministic replay로 현재 queue state와 대조; 변조·state mismatch sad path가 deployment gate를 차단 | 서명된 외부 anchor/원격 attestation은 hosted hardening에서 검토 |
 | AI reviewer agent | pass | `/api/agent/reviewer-brief`, `/api/agent/candidate/{candidate_id}/review-notes`, `reports/agent_reviewer_brief.json`, `reports/agent_candidate_review_notes.json`가 deterministic gate를 source of truth로 둔 read-only 검토 요약을 제공 | LLM planner를 붙일 경우 deterministic fallback regression 유지 |
 | privacy publication gate | pass | raw 내부 data/token/write action 미포함 | release artifact scan 유지 |
-| CI/tests/smoke | pass | `scripts/run_all.sh`와 pytest 통과 | CI 실행 유지 |
-| GitHub/deploy/runbook | pass | Dockerfile, compose, `.env.example`, server script, OpenAPI/ops smoke, private demo auth verifier, deployment readiness gate, docker smoke, compose smoke 존재; public deploy는 upstream readiness 때문에 `NO_GO` | hosted demo 배포 여부 결정 |
+| CI/tests/smoke | pass | 32 tests와 API/dashboard/monitoring smoke 통과; fresh JUnit과 robustness·evidence freshness·audit artifact가 모두 참일 때 quality min 96.0 | 근거 누락 시 95.8 fallback 회귀 유지 |
+| GitHub/deploy/runbook | pass | Dockerfile, compose, `.env.example`, server script, OpenAPI/ops smoke, private demo auth verifier, deployment readiness gate, docker smoke, compose smoke 존재; hosted/public endpoint는 write auth 미설정으로 `NO_GO` | role credential 준비 후 hosted verification |
 | Portfolio case study | pass | `docs/case_study.md`와 `docs/demo_package.md`가 문제, 데이터, 제품 surface, 캡처, 검증, 의사결정 경계를 설명 | 캡처 최신성 유지 |

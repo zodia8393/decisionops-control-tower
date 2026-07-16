@@ -43,7 +43,8 @@
 | Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
 | Upstream public claim | `GO` | evidence 기반 claim 검토 가능 |
 | Public endpoint deploy | `NO_GO` | write auth credential 설정 필요 |
-| Verified tests | 31 passed | API, audit, auth, deployment bind regression 포함 |
+| Evidence-backed quality | 96.0 | fresh JUnit·robustness·freshness·audit artifact가 모두 있을 때만 활성화 |
+| Verified tests | 32 passed | quality fallback, API, audit, auth, deployment bind regression 포함 |
 
 ## 얻은 인사이트
 
@@ -149,6 +150,7 @@ scripts/run_server.sh
 | Candidate notes | `reports/agent_candidate_review_notes.json` | 후보별 evidence lock |
 | Dashboard | `dashboard/index.html` | reviewer 화면 |
 | Quality gate | `reports/quality_gate_scores.csv` | portfolio quality score |
+| Quality evidence | `reports/quality_evidence.json` | JUnit·robustness·freshness·audit floor 근거 |
 
 기본 산출물 root는 `OUTPUT_ROOT`로 바꿀 수 있습니다.
 

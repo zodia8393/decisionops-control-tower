@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -148,6 +149,93 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     ) as handle:
         csv_header = next(csv.reader(handle))
     assert csv_header[-2:] == ["evidence_lock_status", "evidence_contract_json"]
+
+
+def test_quality_floor_requires_fresh_passing_junit(tmp_path):
+    reports = tmp_path / "reports"
+    reports.mkdir(parents=True)
+    (reports / "pytest.xml").write_text(
+        '<testsuite tests="32" failures="0" errors="0" />\n',
+        encoding="utf-8",
+    )
+    bike_root = tmp_path / "bike-root"
+    station_reports = bike_root / "station_level" / "reports"
+    seoul_reports = bike_root / "seoul_ddareungi" / "reports"
+    station_reports.mkdir(parents=True)
+    seoul_reports.mkdir(parents=True)
+    (station_reports / "station_snapshot_readiness.json").write_text(
+        json.dumps({"ready_for_prospective_validation": True}), encoding="utf-8"
+    )
+    (station_reports / "station_public_deploy_readiness.json").write_text(
+        json.dumps({"decision": "GO"}), encoding="utf-8"
+    )
+    (seoul_reports / "validation_summary.json").write_text(
+        json.dumps({"validation_status": "READY", "snapshot_count": 30}), encoding="utf-8"
+    )
+    (seoul_reports / "model_metrics.json").write_text(
+        json.dumps({"model_status": "READY"}), encoding="utf-8"
+    )
+    with (seoul_reports / "rebalancing_priority.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "station_id",
+                "station_name",
+                "station_lat",
+                "station_lon",
+                "recommended_action",
+                "recommended_bikes_delta",
+                "severity_score",
+                "capacity",
+                "bikes_available",
+                "docks_available",
+                "captured_at_kst",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "station_id": "fresh-1",
+                "station_name": "최신 대여소",
+                "station_lat": "37.55",
+                "station_lon": "126.98",
+                "recommended_action": "remove_bikes",
+                "recommended_bikes_delta": "-10",
+                "severity_score": "2.0",
+                "capacity": "20",
+                "bikes_available": "19",
+                "docks_available": "1",
+                "captured_at_kst": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+    run(
+        tmp_path,
+        bike_root=bike_root,
+        workbench_root=tmp_path / "missing-workbench-root",
+    )
+    with (reports / "quality_gate_scores.csv").open(newline="", encoding="utf-8") as handle:
+        verified = list(csv.DictReader(handle))
+    evidence = json.loads((reports / "quality_evidence.json").read_text(encoding="utf-8"))
+
+    assert min(float(row["score"]) for row in verified) == 96.0
+    assert evidence["all_required_evidence"] is True
+
+    (reports / "pytest.xml").write_text(
+        '<testsuite tests="32" failures="1" errors="0" />\n',
+        encoding="utf-8",
+    )
+    run(
+        tmp_path,
+        bike_root=bike_root,
+        workbench_root=tmp_path / "missing-workbench-root",
+    )
+    with (reports / "quality_gate_scores.csv").open(newline="", encoding="utf-8") as handle:
+        unverified = list(csv.DictReader(handle))
+
+    assert min(float(row["score"]) for row in unverified) == 95.8
 
 
 def test_policy_audit_and_action_plan_block_public_overclaim():
