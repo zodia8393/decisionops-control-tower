@@ -2,11 +2,15 @@
 
 [![ci](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml)
 
+[핵심 수치](#핵심-수치) · [대표 시각화](#대표-시각화) · [현재 상태](#현재-상태) · [Quick Start](#실행-방법) · [Private Auth](#private-demo-auth)
+
 ## 결론
 
 서울 공공자전거 운영 문제를 예측 점수에서 끝내지 않고, 지도 기반 후보 조치, 사람 검토 대기열, 승인 기록, 배포 가능 여부 판단까지 연결한 AI/ML product slice입니다.
 
 현재 upstream evidence와 public-claim gate는 `GO`입니다. Local/container demo도 `GO`지만, hosted/public endpoint 배포는 write auth credential이 없어 `NO_GO`입니다.
+
+> **Release snapshot · 2026-07-16** — Evidence/claim `GO` · Local/container `GO` · Audit integrity `PASS` · Hosted/public `NO_GO` (write auth 필요)
 
 ## 무엇을 만들었나
 
@@ -35,9 +39,11 @@
 | Guarded safety dominance | 100% | invalid evidence를 먼저 줄이고 동률에서 조정 단위 비교 |
 | Audit integrity | `PASS` | reviewer history chain과 queue-state replay 통과 |
 | Docker/Compose smoke | `PASS` | 격리 build·HTTP·healthcheck 실행 후 transient 자원 정리 확인 |
+| Seoul validation | 319 snapshots / 317 evaluated | upstream inventory evidence `READY` |
 | Review queue | 54 | 승인/반려/근거 요청 대기 건수 |
 | Upstream public claim | `GO` | evidence 기반 claim 검토 가능 |
 | Public endpoint deploy | `NO_GO` | write auth credential 설정 필요 |
+| Verified tests | 31 passed | API, audit, auth, deployment bind regression 포함 |
 
 ## 얻은 인사이트
 
@@ -68,6 +74,8 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 
 ![DecisionOps Control Tower dashboard](docs/assets/demo/dashboard_overview.png)
 
+**추천 시연 순서:** dashboard overview → 후보 지도 → reviewer queue → audit integrity → deployment gate 순서로 보면 분석 근거가 승인 경계로 연결되는 흐름을 빠르게 확인할 수 있습니다.
+
 | 장면 | 캡처 |
 |---|---|
 | 서울 따릉이 후보 조치 지도 | <img src="docs/assets/demo/impact_map_section.png" alt="Seoul Ddareungi action map" width="520"> |
@@ -89,9 +97,13 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 
 endpoint의 `NO_GO`는 upstream evidence 실패가 아니라 인증 설정을 요구하는 의도한 운영 guardrail입니다.
 
+**다음 gate:** role credential을 안전한 실행 환경에 설정하고 `verify_private_demo.py`와 deployment readiness의 `--require-auth --require-docker` 검증을 통과해야 합니다.
+
 ## 실행 방법
 
 ```bash
+git clone https://github.com/zodia8393/decisionops-control-tower.git
+cd decisionops-control-tower
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
@@ -148,6 +160,10 @@ scripts/run_server.sh
 export CONTROL_TOWER_ROLE_TOKENS="viewer:<viewer-credential>,reviewer:<reviewer-credential>,admin:<admin-credential>"
 PYTHONPATH=src scripts/verify_private_demo.py
 PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
+PYTHONPATH=src python3 scripts/write_deployment_readiness.py \
+  --output-root /tmp/decisionops-control-tower \
+  --require-auth \
+  --require-docker
 ```
 
 Runbook: [docs/private_demo_runbook.md](docs/private_demo_runbook.md)
