@@ -61,7 +61,7 @@ def _smoke_basic(args: argparse.Namespace) -> None:
     agent.raise_for_status()
     chat = client.post(
         "/api/chat",
-        json={"question": "현재 public deployment가 NO_GO인 이유는?"},
+        json={"question": "현재 public deployment 상태와 그 이유는?"},
     )
     chat.raise_for_status()
     if not chat.json().get("citations"):

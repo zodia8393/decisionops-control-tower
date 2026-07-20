@@ -39,7 +39,12 @@ class FakeResponse:
 
 def static_dashboard() -> str:
     return render_dashboard(
-        state={"demo_mode_ready": True, "public_deploy_decision": "NO_GO", "metrics": {}},
+        state={
+            "demo_mode_ready": True,
+            "public_deploy_decision": "GO",
+            "metrics": {},
+            "source_status": {"data_observed_at": "2026-07-20T12:25:01+09:00"},
+        },
         queue=[],
         impact_cards=[],
         include_actions=False,
@@ -51,7 +56,7 @@ def test_static_dashboard_satisfies_public_read_only_contract():
     html = static_dashboard()
     result = validate_demo_html(html)
 
-    assert result == {"required_marker_count": 7, "forbidden_marker_count": 4}
+    assert result == {"required_marker_count": 8, "forbidden_marker_count": 4}
     assert "activatePanel" in html
     assert 'data-workspace-panel="chat"' in html
     assert 'id="workspace-review"' in html

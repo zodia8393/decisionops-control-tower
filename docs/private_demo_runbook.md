@@ -9,7 +9,7 @@
 - Repo: `/workspace/prj/personal/data-scientist-career/decisionops-control-tower`
 - 기본 앱 URL: `http://127.0.0.1:8093`
 - 기본 output root: `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower`
-- 공개 배포 판단은 upstream validation이 끝날 때까지 `NO_GO`로 유지한다.
+- 공개 read-only snapshot은 upstream validation과 freshness를 통과해 `GO`이며, hosted write는 credential 설정 전까지 `NO_GO`다.
 
 ## 1. Credential 설정
 
@@ -39,7 +39,7 @@ scripts/run_all.sh
 
 성공 기준:
 
-- `17 passed`
+- `81 passed` 이상
 - `dashboard ui verification complete`
 - `deployment readiness complete`
 
@@ -111,11 +111,11 @@ COMPOSE_PROJECT_NAME=decisionops-control-tower PORT=8093 docker compose down
 | `viewer` write가 `404` | viewer가 write role로 잘못 처리됨 | auth role parser와 `WRITE_ROLES` 테스트 확인 |
 | queue가 0건 | upstream artifact 또는 demo fallback 문제 | `scripts/run_all.sh` 재실행, `reports/control_review_queue.csv` 확인 |
 | impact card가 0건 | Seoul priority artifact 또는 demo fallback 문제 | `reports/impact_cards.json` 확인 |
-| public deploy가 `GO`로 보임 | gate 오류 가능성 | `reports/control_state.json` blocker 확인 후 배포 중지 |
+| public read-only가 `NO_GO`로 보임 | source stale 또는 fixture 미갱신 | `control_state.json` blocker 확인 후 `refresh_public_demo_inputs.py` 실행 |
 
 ## 7. 시연 스크립트
 
-1. Dashboard 첫 화면에서 `오늘의 결론`과 `Public deploy NO_GO`를 보여준다.
+1. Dashboard 첫 화면에서 `Public read-only GO`와 hosted write `NO_GO`가 분리된 경계임을 보여준다.
 2. 지도에서 서울 따릉이 후보 조치 위치를 보여준다.
 3. Impact card에서 권고 action, 좌표 상태, validation blocker를 설명한다.
 4. Review queue에서 “무엇을 검토하나”와 “원천 근거 요약”을 보여준다.

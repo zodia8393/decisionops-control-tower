@@ -51,7 +51,8 @@
 | Local private demo | `GO` |
 | Container demo | `GO` |
 | Hosted private demo | 인증 credential 설정 전 `NO_GO` |
-| Public deploy | upstream readiness와 hosted hardening 전까지 `NO_GO` |
+| Public read-only snapshot | `GO` · 2026-07-20 12:25 KST aggregate |
+| Hosted write API | credential/target hardening 전까지 `NO_GO` |
 | Review queue | 54건 |
 | Impact cards | 12건 |
 | Policy audit | 8개 policy/capacity row |
@@ -61,7 +62,7 @@
 | Approval audit integrity | `PASS`, hash chain + state replay |
 | CI | GitHub Actions 통과 |
 
-서울 따릉이 validation은 `READY`지만, public deploy readiness가 아직 `GO`가 아니므로 impact card는 성과 claim이 아니라 local review evidence다.
+서울 따릉이 validation과 evidence freshness가 `READY`여서 public read-only snapshot은 `GO`다. 다만 impact card는 실현 효과나 인과 성과가 아니라 reviewer-facing 후보 단위이며, hosted write API는 계속 별도 `NO_GO` gate다.
 
 ## 왜 식상하지 않은가
 
@@ -73,13 +74,13 @@
 - Decision history를 replay한 state가 현재 queue와 다르면 deployment gate를 차단한다.
 - 외부 현장 조치, 실제 자전거 재배치, upstream artifact mutation은 하지 않는다.
 - token 값과 `.env` 값은 report, dashboard, log에 출력하지 않는다.
-- public deploy는 validation과 hosted hardening이 끝나기 전까지 `NO_GO`다.
+- public read-only snapshot과 hosted write API를 분리하며, 후자는 credential과 target hardening 전까지 `NO_GO`다.
 
 ## 다음 마일스톤
 
 | 마일스톤 | 완료 조건 |
 |---|---|
 | Private demo hardening | `CONTROL_TOWER_ROLE_TOKENS` 설정 후 `scripts/verify_private_demo.py` 통과 |
-| Public deploy readiness | bike-share prospective readiness와 hosted/private hardening 통과 |
+| Public snapshot refresh | 최신 aggregate, 3시간 SLA, public fixture 교차검증 통과 |
 | Portfolio package | README, case study, demo package, DFD, runbook, screenshots가 한 흐름으로 연결 |
 | Public claim update | public deploy `GO` 후 verified improvement와 한계 갱신 |

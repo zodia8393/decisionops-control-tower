@@ -114,7 +114,7 @@ flowchart LR
 | F6 | 검토자/운영자 | approval handler | approve/reject decision | token 설정 시 write auth는 `reviewer` 또는 `admin` role 필요 |
 | F7 | approval handler | SQLite store | local audit history | upstream mutation 또는 external dispatch 없음 |
 | F8 | API/runtime | ops metric | health, queue, freshness, request log | monitoring snapshot/history는 generated artifact |
-| F9 | control state/ops metric | deployment readiness writer | local/container/hosted/public readiness | upstream readiness와 hardening 전 public deploy는 `NO_GO` |
+| F9 | control state/ops metric | deployment readiness writer | local/container/hosted/public readiness | public read-only와 hosted write gate를 분리 |
 | F10 | impact/action artifact | evidence gate | source age, freshness, fingerprint, claim boundary | non-fresh evidence는 `needs_more_evidence`로 차단 |
 | F11 | impact cards | robustness evaluator | capacity, unit jitter, confidence stress, source dropout | safety-first dominance와 zero public-claim violation 검증 |
 | F12 | SQLite approval history | audit verifier | canonical decision payload와 replay state | chain/replay 실패 시 local deployment도 `NO_GO` |
@@ -128,10 +128,10 @@ flowchart LR
 | auth 경계 | `CONTROL_TOWER_ROLE_TOKENS`가 설정되면 write action은 `X-Control-Tower-Token` 기반 reviewer/admin role이 필요하다. |
 | observability 경계 | request log, ops metric, deployment readiness는 숨은 runtime state가 아니라 명시적 artifact다. |
 | audit 경계 | Hash chain/replay는 local tamper evidence이며 외부 서명·공증을 주장하지 않는다. |
-| public deploy 경계 | local/container smoke는 `GO`일 수 있지만 upstream readiness와 production hardening 전 public deploy는 `NO_GO`다. |
+| public deploy 경계 | allowlist aggregate의 public read-only snapshot은 `GO`; hosted write는 credential/target hardening 전 `NO_GO`다. |
 
 ## 현재 운영 상태
 
 - Local/container smoke check가 가능하다.
 - Dashboard와 OpenAPI는 reviewer-facing product surface다.
-- Stage 1 station snapshot readiness와 production identity/hosting hardening 전까지 public deploy는 차단된다.
+- Public read-only snapshot은 validation/freshness 통과 상태이며, production identity/hosting hardening 전까지 hosted write만 차단된다.

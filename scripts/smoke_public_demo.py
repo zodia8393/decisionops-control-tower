@@ -18,6 +18,7 @@ REQUIRED_MARKERS = (
     "Recorded · read-only",
     "Recorded read-only snapshot",
     "승인 버튼과 API write를 포함하지 않으며",
+    "공개 read-only 배포 가능",
 )
 FORBIDDEN_MARKERS = (
     'data-decision="',

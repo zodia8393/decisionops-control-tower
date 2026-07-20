@@ -8,7 +8,9 @@ on:
       - "README.md"
       - "docs/**"
       - "tests/fixtures/rag_golden_questions.json"
+      - "tests/fixtures/public_demo_inputs.json"
       - "scripts/run_all.sh"
+      - "scripts/refresh_public_demo_inputs.py"
       - "scripts/smoke_public_demo.py"
       - "requirements.txt"
       - ".github/workflows/pages-demo.yml"
@@ -50,6 +52,7 @@ jobs:
           OUTPUT_ROOT: ${{ github.workspace }}/.pages-output
           BIKE_ROOT: /tmp/missing-bike-root
           WORKBENCH_ROOT: /tmp/missing-workbench-root
+          PUBLIC_INPUTS_JSON: ${{ github.workspace }}/tests/fixtures/public_demo_inputs.json
         run: scripts/run_all.sh
 
       - name: Verify read-only page contract

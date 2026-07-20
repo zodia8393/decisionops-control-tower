@@ -36,7 +36,8 @@
 | reviewer evidence bundle | pass | fingerprint에는 derived impact/action field만 포함하고 secret·credential을 넣지 않으며 stale/missing/future timestamp를 차단 |
 | approval audit integrity | pass | hash payload에는 control decision/reviewer/note/timestamp만 포함하고 credential/header는 제외; chain/replay 실패는 local deploy도 차단 |
 | AI reviewer agent | pass | agent brief와 candidate notes는 read-only artifact 요약이며 credential, approval write, field dispatch, 신규 성과 claim을 포함하지 않음 |
-| public deploy | blocked | bike-share readiness가 READY가 아니면 `NO_GO` 유지 |
+| public read-only snapshot | pass | allowlist aggregate만 포함하고 2026-07-20 validation·freshness gate를 통과해 `GO` |
+| hosted write API | blocked | reviewer/admin credential과 target hardening 전까지 `NO_GO` 유지 |
 
 SHA-256 fingerprint는 source content drift 탐지용이며 전자서명이나 외부 origin attestation을 대체하지 않는다.
 

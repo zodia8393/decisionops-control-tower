@@ -103,7 +103,15 @@ flowchart LR
 
 ## 운영 데이터 snapshot
 
-운영 수치는 artifact를 다시 생성할 때 바뀔 수 있습니다. 2026-07-16 최신 local regeneration 기준으로 서울 326 snapshots 중 324개를 평가했고, 12개 impact card와 8개 reviewer action plan을 만들었습니다. `GO`는 evidence/claim 검토 가능 상태이며, 인증된 hosted write 배포와는 별도 gate입니다.
+운영 수치는 artifact를 다시 생성할 때 바뀔 수 있습니다. 현재 공개 snapshot의 기준 시각은 **2026-07-20 12:25 KST**입니다. 서울 418 snapshots 중 416개를 평가했고(label 1,136,486행), balanced precision@50은 95.95%입니다. 최신 상위 후보로 12개 impact card(검증 단위 711)와 8개 reviewer action plan(후보 단위 501)을 만들었으며, evidence freshness는 8/8건 통과했습니다.
+
+`Public read-only GO`는 공개 가능한 집계 데이터와 근거가 검토 가능하다는 뜻입니다. 인증된 hosted write API의 `NO_GO`와는 별도 gate이며, 브라우저 데모가 승인이나 현장 작업을 실행한다는 뜻이 아닙니다.
+
+로컬의 최신 검증 aggregate를 path·secret 없이 [public fixture](tests/fixtures/public_demo_inputs.json)로 갱신하려면 다음 명령을 실행합니다. source가 `NO_GO`이거나 3시간 freshness SLA를 넘으면 script가 갱신을 거부합니다.
+
+```bash
+PYTHONPATH=src python3 scripts/refresh_public_demo_inputs.py
+```
 
 > **Release boundary** — Public read-only demo `GO` · Local/Compose demo `GO` · Authenticated approval E2E `PASS` · Hosted write API `NO_GO` (target secret 필요)
 

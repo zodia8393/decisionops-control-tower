@@ -34,6 +34,7 @@ DEFAULT_WORKBENCH_ROOT = Path(
 )
 EVIDENCE_BUNDLE_CONTRACT_VERSION = "1.0"
 EVIDENCE_FRESHNESS_SLA_HOURS = 3.0
+PUBLIC_INPUTS_SCHEMA_VERSION = "public-demo-inputs-v1"
 ACTIVE_QUALITY_FLOOR = 96.0
 JUNIT_MAX_AGE_SECONDS = 24 * 60 * 60
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +71,58 @@ def _read_json(path: Path, default: Any) -> Any:
     if not path.is_file():
         return default
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _validate_public_inputs(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("public inputs fixture must be a JSON object")
+    for section in ("bike", "workbench"):
+        if not isinstance(payload.get(section), dict):
+            raise ValueError(f"public inputs fixture is missing object section: {section}")
+
+    forbidden_keys = ("api_key", "password", "secret", "token", "credential")
+    forbidden_paths = ("/data/", "/home/", "/workspace/", "/users/")
+
+    def validate(value: Any, location: str = "root") -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                key_text = str(key)
+                if any(fragment in key_text.lower() for fragment in forbidden_keys):
+                    raise ValueError(f"public inputs fixture exposes sensitive key: {location}.{key_text}")
+                validate(item, f"{location}.{key_text}")
+            return
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                validate(item, f"{location}[{index}]")
+            return
+        if isinstance(value, str):
+            normalized = value.replace("\\", "/").lower()
+            if any(marker in normalized for marker in forbidden_paths):
+                raise ValueError(f"public inputs fixture exposes a local path at {location}")
+
+    validate(payload)
+    snapshot = payload.get("_snapshot")
+    if not isinstance(snapshot, dict):
+        raise ValueError("public inputs fixture is missing object section: _snapshot")
+    if snapshot.get("schema_version") != PUBLIC_INPUTS_SCHEMA_VERSION:
+        raise ValueError("public inputs fixture has an unsupported schema version")
+    observed_text = snapshot.get("source_observed_at")
+    if not isinstance(observed_text, str) or not observed_text.strip():
+        raise ValueError("public inputs fixture is missing source_observed_at")
+    try:
+        observed_at = datetime.fromisoformat(observed_text)
+    except ValueError as exc:
+        raise ValueError("public inputs fixture has an invalid source_observed_at") from exc
+    if observed_at.utcoffset() is None:
+        raise ValueError("public inputs fixture source_observed_at must include a timezone")
+    payload["_fallbacks"] = {"bike": False, "workbench": False}
+    return payload
+
+
+def _load_public_inputs(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(f"public inputs fixture not found: {path}")
+    return _validate_public_inputs(_read_json(path, {}))
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -987,6 +1040,13 @@ def _build_control_state(
     robustness_summary = policy_robustness.get("summary", {})
     source_top = _top_capacity_units(policy_audit, "source_order_capacity", 3)
     guarded_top = _top_capacity_units(policy_audit, "impact_guarded_capacity", 3)
+    snapshot_meta = inputs.get("_snapshot", {})
+    seoul_priority = bike.get("seoul_priority", [])
+    data_observed_at = snapshot_meta.get("source_observed_at")
+    if not data_observed_at and seoul_priority:
+        data_observed_at = seoul_priority[0].get("captured_at_kst")
+    if not data_observed_at:
+        data_observed_at = seoul_validation.get("generated_at_kst")
     return {
         "project": "decisionops-control-tower",
         "status": "seed_ready",
@@ -1046,6 +1106,9 @@ def _build_control_state(
             "incident_source_status": workbench["incident_surface"].get("source_status", "unknown"),
             "bike_demo_fallback": bool(fallbacks.get("bike")),
             "workbench_demo_fallback": bool(fallbacks.get("workbench")),
+            "public_snapshot_fixture": bool(snapshot_meta),
+            "public_snapshot_version": snapshot_meta.get("schema_version"),
+            "data_observed_at": data_observed_at,
         },
     }
 
@@ -1266,6 +1329,16 @@ def _write_reports(
     final_report = reports / "final_report.md"
     unsafe_row = next((row for row in policy_audit if row.get("policy") == "unsafe_auto_publish"), {})
     guarded_row = next((row for row in policy_audit if row.get("policy") == "guarded_all_review"), {})
+    if state["public_deploy_decision"] == "GO":
+        public_boundary = (
+            "Public read-only snapshot은 검증된 aggregate와 fresh evidence 기준으로 `GO`다. "
+            "Hosted write API는 credential과 target hardening을 요구하는 별도 gate다."
+        )
+    else:
+        public_boundary = (
+            "Public read-only snapshot은 blocker가 해소될 때까지 `NO_GO`다. "
+            "Hosted write API도 별도 인증·target gate를 통과해야 한다."
+        )
     final_report.write_text(
         "\n".join(
             [
@@ -1283,7 +1356,7 @@ def _write_reports(
                 f"| Public deploy decision | {state['public_deploy_decision']} | bike-share readiness까지 포함한 공개 배포 판단 |",
                 f"| Review queue | {state['metrics']['review_queue_items']} | reviewer가 승인해야 할 pending decision 수 |",
                 f"| Impact cards | {state['metrics']['impact_card_rows']} | 서울 따릉이 우선순위를 reviewer-facing impact card로 투영한 수 |",
-                f"| Candidate impact units | {state['metrics']['impact_candidate_units_addressed']} | 검증 전 후보 이동량이며 production claim은 아님 |",
+                f"| Candidate impact units | {state['metrics']['impact_candidate_units_addressed']} | 검토 후보 이동량이며 실현 효과나 인과 성과는 아님 |",
                 f"| Unsupported claim units avoided | {state['metrics']['impact_unsupported_claim_units_avoided']} | unsafe publish 대비 guarded policy가 차단한 미검증 claim 단위 |",
                 f"| Robustness dominance | {state['metrics']['reviewer_policy_guarded_dominance_rate']:.1%} | 4개 stress scenario × 3개 capacity에서 confidence-weighted guarded policy가 source order 이상인 비율 |",
                 f"| Worst-case robustness regret | {state['metrics']['reviewer_policy_worst_case_regret_units']:.1f} | 동일 guarded oracle 대비 confidence-adjusted 후보 단위 손실 |",
@@ -1318,7 +1391,7 @@ def _write_reports(
                 "",
                 "Agent는 health/API/artifact만 읽는 read-only reviewer assistant다. `agent_reviewer_brief.json`과 `agent_candidate_review_notes.json`은 agent가 사용한 source status, claim-safety rule, evidence refs, recommended next actions를 보존한다. Approval write, dispatch, `GO/NO_GO` 판단, 신규 효과 추정치는 deterministic pipeline과 policy gate에 남긴다.",
                 "",
-                "Public deploy와 impact 성과 claim은 upstream readiness와 hosted/private hardening이 끝날 때까지 `NO_GO`로 유지한다.",
+                public_boundary,
             ]
         )
         + "\n",
@@ -1457,12 +1530,17 @@ def run(
     output_root: Path,
     bike_root: Path = DEFAULT_BIKE_ROOT,
     workbench_root: Path = DEFAULT_WORKBENCH_ROOT,
+    public_inputs_path: Path | None = None,
 ) -> dict[str, Any]:
     reports = output_root / "reports"
     dashboard = output_root / "dashboard"
     reports.mkdir(parents=True, exist_ok=True)
     dashboard.mkdir(parents=True, exist_ok=True)
-    inputs = _collect_inputs(bike_root, workbench_root)
+    inputs = (
+        _load_public_inputs(public_inputs_path)
+        if public_inputs_path is not None
+        else _collect_inputs(bike_root, workbench_root)
+    )
     impact_cards = _build_impact_cards(inputs)
     policy_audit = _build_impact_policy_audit(impact_cards)
     policy_robustness = _build_reviewer_policy_robustness(impact_cards)
@@ -1588,12 +1666,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument("--bike-root", default=str(DEFAULT_BIKE_ROOT))
     parser.add_argument("--workbench-root", default=str(DEFAULT_WORKBENCH_ROOT))
+    parser.add_argument(
+        "--public-inputs-json",
+        help="Use a versioned, path-sanitized public snapshot instead of local upstream roots.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    summary = run(Path(args.output_root), Path(args.bike_root), Path(args.workbench_root))
+    summary = run(
+        Path(args.output_root),
+        Path(args.bike_root),
+        Path(args.workbench_root),
+        Path(args.public_inputs_json) if args.public_inputs_json else None,
+    )
     print(
         "control tower product slice complete: "
         f"demo_mode_ready={summary['demo_mode_ready']}, "

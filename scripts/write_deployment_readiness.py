@@ -260,7 +260,7 @@ def collect_readiness(
     elif not auth["hosted_auth_ready"]:
         hosted_private_blockers.extend(auth["configuration_errors"])
 
-    public_blockers = list(hosted_private_blockers)
+    public_blockers = list(demo_blockers)
     public_blockers.extend(state.get("blockers", []))
     if not state.get("public_deploy_ready"):
         public_blockers.append("control state public_deploy_ready is false")
@@ -278,7 +278,7 @@ def collect_readiness(
     local_demo_go = not demo_blockers
     container_demo_go = local_demo_go and docker_ready
     hosted_private_go = container_demo_go and auth["hosted_auth_ready"]
-    public_go = hosted_private_go and bool(state.get("public_deploy_ready"))
+    public_read_only_go = local_demo_go and bool(state.get("public_deploy_ready"))
     overall_blockers = list(demo_blockers)
     if require_docker and not container_demo_go:
         overall_blockers.append("container_demo is NO_GO")
@@ -292,7 +292,11 @@ def collect_readiness(
             "local_private_demo": _decision(local_demo_go),
             "container_demo": _decision(container_demo_go),
             "hosted_private_demo": _decision(hosted_private_go),
-            "public_deploy": _decision(public_go),
+            "hosted_write_api": _decision(hosted_private_go),
+            "public_read_only_snapshot": _decision(public_read_only_go),
+            # Backward-compatible alias. Public deploy means the read-only snapshot,
+            # not the separately authenticated hosted write API.
+            "public_deploy": _decision(public_read_only_go),
         },
         "overall_blockers": overall_blockers,
         "blockers": {
@@ -339,8 +343,8 @@ def _markdown(payload: dict[str, Any]) -> str:
             "|---|---|",
             f"| Local private demo | {decisions['local_private_demo']} |",
             f"| Container demo | {decisions['container_demo']} |",
-            f"| Hosted private demo | {decisions['hosted_private_demo']} |",
-            f"| Public deploy | {decisions['public_deploy']} |",
+            f"| Hosted write API | {decisions['hosted_write_api']} |",
+            f"| Public read-only snapshot | {decisions['public_read_only_snapshot']} |",
             "",
             "## Public Deploy Blockers",
             "",
@@ -378,8 +382,8 @@ def main() -> None:
         "deployment readiness complete: "
         f"local_private_demo={payload['decisions']['local_private_demo']}, "
         f"container_demo={payload['decisions']['container_demo']}, "
-        f"hosted_private_demo={payload['decisions']['hosted_private_demo']}, "
-        f"public_deploy={payload['decisions']['public_deploy']}, "
+        f"hosted_write_api={payload['decisions']['hosted_write_api']}, "
+        f"public_read_only_snapshot={payload['decisions']['public_read_only_snapshot']}, "
         f"report={paths['json']}"
     )
 

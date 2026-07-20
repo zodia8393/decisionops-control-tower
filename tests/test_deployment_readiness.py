@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sqlite3
 import sys
@@ -42,7 +43,10 @@ def test_deployment_readiness_writes_private_demo_gate(tmp_path, monkeypatch):
 
     assert payload["decisions"]["local_private_demo"] == "GO"
     assert payload["decisions"]["container_demo"] == "GO"
-    assert payload["decisions"]["public_deploy"] == "NO_GO"
+    assert payload["decisions"]["hosted_write_api"] == "NO_GO"
+    assert payload["decisions"]["public_deploy"] == (
+        "GO" if payload["control_state"]["public_deploy_ready"] else "NO_GO"
+    )
     assert payload["artifacts"]["reviewer_evidence_bundles"]["exists"] is True
     assert payload["artifacts"]["approval_audit_integrity"]["exists"] is True
     assert payload["approval_audit_integrity"]["status"] == "pass"
@@ -107,6 +111,34 @@ def test_deployment_readiness_accepts_strong_reviewer_auth(tmp_path, monkeypatch
     assert payload["decisions"]["hosted_private_demo"] == "GO"
     assert payload["auth"]["hosted_auth_ready"] is True
     assert payload["auth"]["configured_roles"] == ["reviewer"]
+
+
+def test_public_read_only_gate_does_not_require_hosted_write_auth(tmp_path, monkeypatch):
+    monkeypatch.delenv("CONTROL_TOWER_ROLE_TOKENS", raising=False)
+    monkeypatch.delenv("CONTROL_TOWER_API_TOKEN", raising=False)
+    run(tmp_path)
+    state_path = tmp_path / "reports" / "control_state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(
+        {
+            "public_deploy_ready": True,
+            "public_deploy_decision": "GO",
+            "blockers": [],
+        }
+    )
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+    payload = collect_readiness(
+        tmp_path,
+        tmp_path / "missing-bike-root",
+        tmp_path / "missing-workbench-root",
+        docker_status={**READY_DOCKER, "buildx_ready": True},
+    )
+
+    assert payload["decisions"]["public_read_only_snapshot"] == "GO"
+    assert payload["decisions"]["public_deploy"] == "GO"
+    assert payload["decisions"]["hosted_write_api"] == "NO_GO"
+    assert payload["blockers"]["public_deploy"] == []
 
 
 def test_docker_probe_falls_back_to_sg_group(monkeypatch):
