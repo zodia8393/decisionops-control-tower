@@ -632,7 +632,7 @@ def render_chat_surface(
               <article class="chat-message chat-message--assistant">
                 <span class="chat-status chat-status--answer">Evidence-grounded</span>
                 <span class="chat-message__label">AI reviewer</span>
-                <p class="chat-message__answer">운영 데이터와 문서를 근거로 답합니다. 위험한 실행 요청은 거부하고, 근거가 부족하면 사람의 검토가 필요하다고 표시합니다.</p>
+                <p class="chat-message__answer">운영 데이터와 문서를 근거로 답합니다. 위험한 요청은 거부하고, 근거가 부족하면 사람의 검토가 필요하다고 표시합니다.</p>
               </article>
             </div>
             <form class="chat-composer" data-chat-form>

@@ -65,28 +65,244 @@ button:focus-visible {
   outline-offset: 2px;
 }
 .app-shell {
+  display: grid;
+  grid-template-columns: 268px minmax(0, 1fr);
   min-height: 100vh;
 }
-.hero {
-  background: var(--color-panel);
-  border-bottom: 1px solid var(--color-border);
+.skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 100;
+  transform: translateY(-160%);
+  border-radius: var(--radius-sm);
+  background: var(--color-ink);
+  color: #ffffff;
+  padding: 10px 14px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: transform 140ms ease;
 }
-.hero__inner,
+.skip-link:focus {
+  transform: translateY(0);
+}
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  flex-direction: column;
+  overflow-y: auto;
+  border-right: 1px solid #1d3348;
+  background: #102436;
+  color: #dce8f1;
+  padding: var(--space-5) var(--space-4);
+}
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2) var(--space-5);
+}
+.sidebar-brand__mark {
+  display: inline-flex;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #4a7898;
+  border-radius: 10px;
+  background: #1b5275;
+  color: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+.sidebar-brand__name {
+  display: block;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+.sidebar-brand__desc {
+  display: block;
+  margin-top: 2px;
+  color: #9eb4c5;
+  font-size: 0.72rem;
+}
+.sidebar-nav {
+  display: grid;
+  gap: 3px;
+}
+.sidebar-nav__group {
+  margin: var(--space-4) var(--space-2) var(--space-2);
+  color: #7f9aaf;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sidebar-nav__group:first-child {
+  margin-top: 0;
+}
+.sidebar-nav__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: #c9d8e3;
+  padding: 10px 11px;
+  text-decoration: none;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+.sidebar-nav__item:hover {
+  border-color: #35556e;
+  background: #173149;
+  color: #ffffff;
+}
+.sidebar-nav__item[aria-current="page"] {
+  border-color: #477b9e;
+  background: #1a4a69;
+  color: #ffffff;
+  box-shadow: inset 3px 0 0 #72b7de;
+}
+.sidebar-nav__title {
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+.sidebar-nav__desc {
+  grid-column: 1 / -1;
+  color: #8fa9bb;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+.sidebar-nav__item[aria-current="page"] .sidebar-nav__desc {
+  color: #bcd2e0;
+}
+.sidebar-nav__badge {
+  display: inline-flex;
+  min-width: 24px;
+  min-height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #213d53;
+  color: #bcd0de;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+.sidebar-nav__item[aria-current="page"] .sidebar-nav__badge {
+  background: #dceef8;
+  color: #114461;
+}
+.sidebar-footer {
+  margin-top: auto;
+  border: 1px solid #2c485e;
+  border-radius: var(--radius-md);
+  background: #132c41;
+  padding: var(--space-3);
+}
+.sidebar-footer__label {
+  color: #8fa9bb;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.sidebar-footer strong {
+  display: block;
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+.sidebar-footer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-3);
+  color: #a9bfce;
+  font-size: 0.68rem;
+}
+.workspace {
+  min-width: 0;
+}
+.workspace-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.96);
+  padding: 12px var(--space-5);
+  backdrop-filter: blur(12px);
+}
+.workspace-topbar__main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-3);
+}
+.workspace-topbar__title {
+  min-width: 0;
+}
+.workspace-topbar h1 {
+  overflow: hidden;
+  max-width: none;
+  margin-top: 2px;
+  font-size: 1.12rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-topbar__status {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mobile-nav-toggle {
+  display: none;
+  width: 42px;
+  min-height: 42px;
+  flex: 0 0 auto;
+  padding: 0;
+}
+.mobile-nav-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+.sidebar-backdrop {
+  display: none;
+}
+.workspace-panel[hidden] {
+  display: none !important;
+}
+.workspace-panel:focus {
+  outline: none;
+}
+.workspace-panel--chat .chat-section {
+  margin-top: 0;
+}
 .main {
   width: min(100%, var(--content-max));
   margin: 0 auto;
   padding-left: var(--space-5);
   padding-right: var(--space-5);
 }
-.hero__inner {
-  padding-top: var(--space-6);
-  padding-bottom: var(--space-5);
-}
 .main {
   padding-top: var(--space-6);
   padding-bottom: var(--space-7);
 }
-.topline,
 .section__meta {
   display: flex;
   align-items: center;
@@ -99,13 +315,6 @@ button:focus-visible {
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
-}
-.hero__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
-  gap: var(--space-6);
-  align-items: end;
-  margin-top: var(--space-4);
 }
 h1,
 h2,
@@ -125,18 +334,6 @@ h2 {
 }
 h3 {
   font-size: 1rem;
-}
-.hero__copy {
-  max-width: 760px;
-  margin-top: var(--space-4);
-  color: var(--color-muted);
-  font-size: 1.03rem;
-}
-.hero__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-top: var(--space-5);
 }
 .button,
 button {
@@ -181,69 +378,6 @@ td button {
 button:disabled {
   cursor: wait;
   opacity: 0.62;
-}
-.readiness-panel {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-panel-soft);
-  padding: var(--space-4);
-}
-.readiness-panel__title {
-  color: var(--color-muted);
-  font-size: 0.86rem;
-  font-weight: 700;
-}
-.readiness-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: var(--space-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-.todo-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: var(--space-4) 0 0;
-  padding: 0;
-  list-style: none;
-}
-.readiness-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.todo-list li {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: start;
-}
-.todo-list strong {
-  display: block;
-  font-size: 0.94rem;
-}
-.todo-detail {
-  display: block;
-  margin-top: 2px;
-  color: var(--color-muted);
-  font-size: 0.84rem;
-}
-.todo-index {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-.readiness-list span:first-child {
-  color: var(--color-muted);
-  font-size: 0.9rem;
 }
 .status-pill {
   display: inline-flex;
@@ -663,10 +797,6 @@ button:disabled {
   color: var(--color-muted);
 }
 @media (max-width: 960px) {
-  .hero__grid {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -687,19 +817,53 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+@media (max-width: 1040px) {
+  .app-shell {
+    display: block;
+  }
+  .app-sidebar {
+    position: fixed;
+    left: 0;
+    transform: translateX(-105%);
+    width: min(86vw, 290px);
+    transition: transform 180ms ease;
+    box-shadow: 18px 0 45px rgba(5, 20, 32, 0.24);
+  }
+  body.sidebar-open {
+    overflow: hidden;
+  }
+  body.sidebar-open .app-sidebar {
+    transform: translateX(0);
+  }
+  .sidebar-backdrop:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    display: block;
+    border: 0;
+    background: rgba(7, 20, 31, 0.52);
+    padding: 0;
+  }
+  .mobile-nav-toggle {
+    display: inline-flex;
+  }
+}
 @media (max-width: 640px) {
-  .hero__inner,
   .main {
     padding-left: var(--space-4);
     padding-right: var(--space-4);
   }
-  .hero__inner {
-    padding-top: var(--space-5);
+  .workspace-topbar {
+    min-height: 64px;
+    padding: 10px var(--space-4);
   }
-  h1 {
-    font-size: 2rem;
+  .workspace-topbar h1 {
+    font-size: 1rem;
   }
-  .hero__actions,
+  .workspace-topbar .eyebrow,
+  .workspace-topbar__status .status-pill:first-child {
+    display: none;
+  }
   .section__header {
     align-items: stretch;
     flex-direction: column;
@@ -1598,7 +1762,6 @@ def render_dashboard(
     pending = by_state.get("pending_reviewer", _state_count(queue, "pending_reviewer"))
     status = "DEMO READY" if state.get("demo_mode_ready") else "BLOCKED"
     public_deploy = state.get("public_deploy_decision", "UNKNOWN")
-    auth_state = "ON" if ops.get("auth_required") else "OFF"
     auth_label = "사용" if ops.get("auth_required") else "미사용"
     blockers = state.get("blockers", [])
     candidate_units = metrics.get("impact_candidate_units_addressed", 0)
@@ -1648,6 +1811,124 @@ def render_dashboard(
         ),
         _metric("공개 배포", release_label, "외부 공개 가능 여부", "good" if public_deploy == "GO" else "risk"),
     ]
+
+    navigation_script = """
+  <script>
+    (() => {
+      const navItems = Array.from(document.querySelectorAll("[data-panel-target]"));
+      const panels = Array.from(document.querySelectorAll("[data-workspace-panel]"));
+      const currentTitle = document.querySelector("[data-current-panel-title]");
+      const menuToggle = document.querySelector("[data-sidebar-toggle]");
+      const backdrop = document.querySelector("[data-sidebar-backdrop]");
+      const mobileMedia = window.matchMedia("(max-width: 1040px)");
+
+      function setSidebarOpen(open) {
+        const next = Boolean(open && mobileMedia.matches);
+        document.body.classList.toggle("sidebar-open", next);
+        if (menuToggle) menuToggle.setAttribute("aria-expanded", String(next));
+        if (backdrop) backdrop.hidden = !next;
+      }
+
+      function activatePanel(name, options = {}) {
+        const targetPanel = panels.find((panel) => panel.dataset.workspacePanel === name);
+        if (!targetPanel) return;
+
+        panels.forEach((panel) => {
+          panel.hidden = panel !== targetPanel;
+        });
+        navItems.forEach((item) => {
+          if (item.dataset.panelTarget === name) {
+            item.setAttribute("aria-current", "page");
+          } else {
+            item.removeAttribute("aria-current");
+          }
+        });
+
+        const activeItem = navItems.find((item) => item.dataset.panelTarget === name);
+        if (currentTitle && activeItem) {
+          currentTitle.textContent = activeItem.dataset.panelTitle || activeItem.textContent.trim();
+        }
+        if (options.updateHistory && activeItem) {
+          const destination = activeItem.getAttribute("href");
+          if (destination && window.location.hash !== destination) {
+            window.history.pushState({workspacePanel: name}, "", destination);
+          }
+        }
+        if (options.scroll) {
+          window.scrollTo({top: 0, behavior: "auto"});
+        }
+        if (options.focus) {
+          targetPanel.focus({preventScroll: true});
+        }
+        setSidebarOpen(false);
+      }
+
+      function revealHashTarget() {
+        const rawId = window.location.hash.slice(1);
+        if (!rawId) {
+          activatePanel("chat");
+          return;
+        }
+        let id = rawId;
+        try {
+          id = decodeURIComponent(rawId);
+        } catch (_error) {
+          id = rawId;
+        }
+        const target = document.getElementById(id);
+        const panel = target && target.closest("[data-workspace-panel]");
+        if (!panel) {
+          activatePanel("chat");
+          return;
+        }
+        activatePanel(panel.dataset.workspacePanel);
+        if (target !== panel) {
+          window.requestAnimationFrame(() => target.scrollIntoView({block: "start"}));
+        }
+      }
+
+      document.addEventListener("click", (event) => {
+        const navItem = event.target.closest("[data-panel-target]");
+        if (navItem) {
+          event.preventDefault();
+          activatePanel(navItem.dataset.panelTarget, {
+            updateHistory: true,
+            scroll: true,
+            focus: true
+          });
+          return;
+        }
+
+        const anchor = event.target.closest('a[href^="#"]');
+        if (!anchor) return;
+        const target = document.getElementById(anchor.getAttribute("href").slice(1));
+        const panel = target && target.closest("[data-workspace-panel]");
+        if (panel && panel.hidden) {
+          activatePanel(panel.dataset.workspacePanel);
+        }
+      });
+
+      if (menuToggle) {
+        menuToggle.addEventListener("click", () => {
+          setSidebarOpen(!document.body.classList.contains("sidebar-open"));
+        });
+      }
+      if (backdrop) {
+        backdrop.addEventListener("click", () => setSidebarOpen(false));
+      }
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && document.body.classList.contains("sidebar-open")) {
+          setSidebarOpen(false);
+          if (menuToggle) menuToggle.focus();
+        }
+      });
+      mobileMedia.addEventListener("change", () => setSidebarOpen(false));
+      window.addEventListener("hashchange", revealHashTarget);
+      window.addEventListener("popstate", revealHashTarget);
+      revealHashTarget();
+    })();
+  </script>
+"""
 
     script = ""
     if include_script:
@@ -1719,50 +2000,111 @@ def render_dashboard(
   <style>{DASHBOARD_CSS}{CHAT_CSS}</style>
 </head>
 <body data-auth-required="{str(bool(ops.get("auth_required"))).lower()}">
+  <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
   <div class="app-shell">
-    <header class="hero">
-      <div class="hero__inner">
-        <div class="topline">
-          <span class="eyebrow">DecisionOps Control Tower · Evidence-grounded AI</span>
-          {_pill(status)}
-          {_pill(public_deploy, f"공개 배포 {public_deploy}")}
-        </div>
-        <div class="hero__grid">
-          <div>
-            <h1>AI 운영 의사결정 챗봇</h1>
-            <p class="hero__copy">
-              주어진 데이터를 자동으로 분석해, 근거가 연결된 판단을 제공하고 위험한 요청은 거부합니다.
-              오늘의 결론은 <strong>{_escape(release_label)}</strong>이며, {_escape(_release_summary(public_deploy))}
-            </p>
-            <nav class="hero__actions" aria-label="주요 dashboard actions">
-              <a class="button button--primary" href="#decision-chat">데이터로 질문하기</a>
-              <a class="button button--primary" href="#reviewer-queue">검토 대기열 보기</a>
-              <a class="button" href="#impact-map">지도에서 보기</a>
-              <a class="button" href="#evidence-bundles">근거 패킷 보기</a>
-            </nav>
-          </div>
-          <aside class="readiness-panel" aria-label="지금 해야 할 일">
-            <div class="readiness-panel__title">지금 해야 할 일</div>
-            <ol class="todo-list">
-              <li>
-                <span class="todo-index">1</span>
-                <span><strong>데이터와 문서를 함께 검색</strong><span class="todo-detail">수치는 API에서, 설명은 vector retrieval에서 찾습니다.</span></span>
-              </li>
-              <li>
-                <span class="todo-index">2</span>
-                <span><strong>판단마다 출처 연결</strong><span class="todo-detail">Evidence drawer에서 field, section, freshness를 확인합니다.</span></span>
-              </li>
-              <li>
-                <span class="todo-index">3</span>
-                <span><strong>위험한 요청은 사람에게 전달</strong><span class="todo-detail">AI는 실행하지 않고 거부 또는 review 상태로 전환합니다.</span></span>
-              </li>
-            </ol>
-          </aside>
+    <aside class="app-sidebar" id="app-sidebar" aria-label="DecisionOps Control Tower 세부 화면">
+      <div class="sidebar-brand">
+        <span class="sidebar-brand__mark" aria-hidden="true">DO</span>
+        <span>
+          <span class="sidebar-brand__name">DecisionOps</span>
+          <span class="sidebar-brand__desc">AI Control Tower</span>
+        </span>
+      </div>
+      <nav class="sidebar-nav" aria-label="화면 선택">
+        <div class="sidebar-nav__group">Main</div>
+        <a class="sidebar-nav__item" id="nav-chat" href="#workspace-chat"
+           data-panel-target="chat" data-panel-title="AI 운영 의사결정 챗봇" aria-current="page">
+          <span class="sidebar-nav__title">AI 챗봇</span>
+          <span class="sidebar-nav__badge">MAIN</span>
+          <span class="sidebar-nav__desc">질문 · 데이터 분석 · 연결된 근거</span>
+        </a>
+
+        <div class="sidebar-nav__group">Details</div>
+        <a class="sidebar-nav__item" id="nav-summary" href="#workspace-summary"
+           data-panel-target="summary" data-panel-title="운영 요약">
+          <span class="sidebar-nav__title">운영 요약</span>
+          <span class="sidebar-nav__badge">{len(metric_cards)}</span>
+          <span class="sidebar-nav__desc">핵심 지표 · AI brief · blocker</span>
+        </a>
+        <a class="sidebar-nav__item" id="nav-candidates" href="#workspace-candidates"
+           data-panel-target="candidates" data-panel-title="후보 분석">
+          <span class="sidebar-nav__title">후보 분석</span>
+          <span class="sidebar-nav__badge">{len(impact_cards)}</span>
+          <span class="sidebar-nav__desc">지도에서 보기 · 따릉이 후보 조치</span>
+        </a>
+        <a class="sidebar-nav__item" id="nav-policy" href="#workspace-policy"
+           data-panel-target="policy" data-panel-title="정책 검증">
+          <span class="sidebar-nav__title">정책 검증</span>
+          <span class="sidebar-nav__badge">{len(robustness_rows)}</span>
+          <span class="sidebar-nav__desc">guardrail 비교 · stress test</span>
+        </a>
+        <a class="sidebar-nav__item" id="nav-evidence" href="#workspace-evidence"
+           data-panel-target="evidence" data-panel-title="근거와 실행 계획">
+          <span class="sidebar-nav__title">근거 · 실행 계획</span>
+          <span class="sidebar-nav__badge">{len(reviewer_evidence_bundles)}</span>
+          <span class="sidebar-nav__desc">근거 패킷 보기 · freshness lock</span>
+        </a>
+        <a class="sidebar-nav__item" id="nav-review" href="#workspace-review"
+           data-panel-target="review" data-panel-title="사람 검토와 감사">
+          <span class="sidebar-nav__title">검토 대기열 보기</span>
+          <span class="sidebar-nav__badge">{pending}</span>
+          <span class="sidebar-nav__desc">승인 · 이력 · audit integrity</span>
+        </a>
+
+        <div class="sidebar-nav__group">System</div>
+        <a class="sidebar-nav__item" id="nav-system" href="#workspace-system"
+           data-panel-target="system" data-panel-title="시스템 상태">
+          <span class="sidebar-nav__title">시스템 상태</span>
+          <span class="sidebar-nav__badge">{"LIVE" if state.get("demo_mode_ready") else "CHECK"}</span>
+          <span class="sidebar-nav__desc">runtime · artifacts · auth {_escape(auth_label)}</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="sidebar-footer__label">오늘의 결론</span>
+        <strong>{_escape(release_label)}</strong>
+        <div class="sidebar-footer__meta">
+          <span>RAG · {_escape(vector_store)}</span>
+          <span>Auth · {_escape(auth_label)}</span>
         </div>
       </div>
-    </header>
-    <main class="main">
-      {chat_surface}
+    </aside>
+    <button class="sidebar-backdrop" type="button" data-sidebar-backdrop
+            aria-label="사이드바 닫기" hidden></button>
+
+    <div class="workspace">
+      <header class="workspace-topbar">
+        <div class="workspace-topbar__main">
+          <button class="mobile-nav-toggle" type="button" data-sidebar-toggle
+                  aria-controls="app-sidebar" aria-expanded="false" aria-label="세부 화면 메뉴 열기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <div class="workspace-topbar__title">
+            <span class="eyebrow">현재 화면</span>
+            <h1 data-current-panel-title>AI 운영 의사결정 챗봇</h1>
+          </div>
+        </div>
+        <div class="workspace-topbar__status">
+          {_pill(status)}
+          {_pill(public_deploy, f"공개 {public_deploy}")}
+        </div>
+      </header>
+
+      <main class="main" id="main-content" tabindex="-1">
+        <div class="workspace-panel workspace-panel--chat" id="workspace-chat"
+             data-workspace-panel="chat" aria-labelledby="nav-chat" tabindex="-1">
+          {chat_surface}
+        </div>
+
+        <div class="workspace-panel" id="workspace-summary"
+             data-workspace-panel="summary" aria-labelledby="nav-summary" tabindex="-1" hidden>
+      <section class="section" aria-label="현재 운영 결론">
+        <div class="callout{" callout--good" if public_deploy == "GO" else ""}">
+          <strong>오늘의 결론 · {_escape(release_label)}</strong><br>
+          {_escape(_release_summary(public_deploy))}
+        </div>
+      </section>
       {snapshot_notice}
       <section class="section" aria-label="의사결정 지표">
         <div class="section__header">
@@ -1799,7 +2141,10 @@ def render_dashboard(
         </div>
         {_render_blockers(blockers if isinstance(blockers, list) else [])}
       </section>
+        </div>
 
+        <div class="workspace-panel" id="workspace-candidates"
+             data-workspace-panel="candidates" aria-labelledby="nav-candidates" tabindex="-1" hidden>
       <section class="section" id="impact-map">
         <div class="section__header">
           <div>
@@ -1828,7 +2173,10 @@ def render_dashboard(
             _render_impact_rows(impact_cards, 20),
         )}
       </section>
+        </div>
 
+        <div class="workspace-panel" id="workspace-policy"
+             data-workspace-panel="policy" aria-labelledby="nav-policy" tabindex="-1" hidden>
       <section class="section" id="policy-audit">
         <div class="section__header">
           <div>
@@ -1863,7 +2211,10 @@ def render_dashboard(
             _render_robustness_rows(robustness_rows, 12),
         )}
       </section>
+        </div>
 
+        <div class="workspace-panel" id="workspace-evidence"
+             data-workspace-panel="evidence" aria-labelledby="nav-evidence" tabindex="-1" hidden>
       <section class="section" id="action-plan">
         <div class="section__header">
           <div>
@@ -1897,7 +2248,10 @@ def render_dashboard(
             _render_evidence_bundle_rows(reviewer_evidence_bundles, 12),
         )}
       </section>
+        </div>
 
+        <div class="workspace-panel" id="workspace-review"
+             data-workspace-panel="review" aria-labelledby="nav-review" tabindex="-1" hidden>
       <section class="section" id="reviewer-queue">
         <div class="section__header">
           <div>
@@ -1936,7 +2290,10 @@ def render_dashboard(
         </div>
         {_table(["검증", "결과", "의미"], _render_audit_integrity_rows(audit_integrity))}
       </section>
+        </div>
 
+        <div class="workspace-panel" id="workspace-system"
+             data-workspace-panel="system" aria-labelledby="nav-system" tabindex="-1" hidden>
       <section class="section" id="operations">
         <div class="section__header">
           <div>
@@ -1946,8 +2303,11 @@ def render_dashboard(
         </div>
         {_table(["산출물", "존재", "갱신 시각(UTC)"], _render_artifact_rows(ops.get("artifacts", {})))}
       </section>
-    </main>
+        </div>
+      </main>
+    </div>
   </div>
+{navigation_script}
 {script}</body>
 </html>
 """
