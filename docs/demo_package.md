@@ -6,7 +6,7 @@
 
 ## 시연 순서
 
-1. **Dashboard overview**: 현재 결론, public deploy `NO_GO`, review queue, impact card 수를 보여준다.
+1. **Dashboard overview**: 챗봇 기본 화면과 `Public read-only GO`를 보여주고, hosted write API는 별도 `NO_GO` gate임을 설명한다.
 2. **AI Reviewer Brief**: agent가 API/artifact를 읽고 claim risk와 다음 검토 action을 요약하되, deterministic gate를 source of truth로 둔다는 점을 보여준다.
 3. **서울 따릉이 지도**: 실제 OpenStreetMap tile 위에 후보 번호가 겹쳐 표시되는 것을 보여준다.
 4. **영향 정책 비교**: unsafe publish 기준선과 guarded policy의 미검증 claim 차단 차이를 보여준다.
@@ -23,7 +23,7 @@
 | 장면 | 이미지 | 설명 |
 |---|---|---|
 | Dashboard overview | ![Dashboard overview](assets/demo/dashboard_overview.png) | 첫 화면에서 product state와 CTA를 확인 |
-| Full dashboard | ![Dashboard full page](assets/demo/dashboard_full_page.png) | 전체 reviewer workflow 흐름 |
+| Sidebar dashboard | ![Dashboard full page](assets/demo/dashboard_full_page.png) | 챗봇과 세부 reviewer workflow를 분리한 화면 |
 | 서울 따릉이 지도 | ![Impact map](assets/demo/impact_map_section.png) | 좌표 기반 후보 조치를 실제 지도 tile 위에 번호로 표시 |
 | 정책 비교 | ![Policy audit section](assets/demo/policy_audit_section.png) | 미검증 claim 차단과 capacity 비교 |
 | Policy robustness | ![Policy robustness](assets/demo/reviewer_policy_robustness_section.png) | deterministic stress scenario의 safety dominance와 regret |
@@ -55,7 +55,7 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 
 - “따릉이 실시간성 inventory를 단순히 보여주는 것이 아니라, 어떤 조치를 검토해야 하는지 impact card로 만든다.”
 - “AI agent는 decision maker가 아니라 health/API/artifact를 읽는 evidence-grounded reviewer assistant다.”
-- “Seoul validation이 `READY`여도 public deploy readiness 전에는 성과 claim을 blocked 상태로 둔다.”
+- “2026-07-20 12:25 KST snapshot은 Seoul validation `READY`, evidence 8/8 fresh로 public read-only gate를 통과했다.”
 - “unsafe publish 기준선은 미검증 claim을 만들 수 있지만 guarded policy는 같은 후보를 local evidence로만 보존한다.”
 - “reviewer/admin token 없이는 approval write가 되지 않는다.”
 - “3시간 SLA를 넘기거나 timestamp가 잘못된 근거는 다시 생성하기 전까지 승인 후보가 아니다.”
@@ -67,5 +67,5 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 
 - 캡처는 local/private demo 기준이다.
 - OpenStreetMap tile 네트워크가 차단되면 지도 배경 로딩이 제한될 수 있지만 후보 번호와 evidence table은 유지된다.
-- Public deploy readiness가 `GO`가 되기 전까지 verified external impact claim은 하지 않는다.
+- Public read-only `GO`는 aggregate와 근거의 공개 가능 상태이며, 실제 재배치 성과나 hosted write 승인을 뜻하지 않는다.
 - Approval hash chain은 local tamper evidence이며 서명된 외부 attestation은 아니다.

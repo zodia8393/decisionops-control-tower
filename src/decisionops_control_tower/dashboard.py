@@ -1423,13 +1423,25 @@ def _empty_row(colspan: int, text: str) -> str:
 
 
 def _release_label(public_deploy: Any) -> str:
-    return "운영 배포 가능" if str(public_deploy) == "GO" else "운영 배포 보류"
+    return "공개 read-only 배포 가능" if str(public_deploy) == "GO" else "공개 데이터 배포 보류"
 
 
 def _release_summary(public_deploy: Any) -> str:
     if str(public_deploy) == "GO":
-        return "필수 검증과 readiness gate를 통과했습니다. 그래도 승인 이력은 남기고 배포하세요."
-    return "공개 read-only 데모는 사용할 수 있지만, 운영 endpoint와 성과 claim은 아직 검토 단계입니다."
+        return "공개 snapshot의 데이터·근거 gate를 통과했습니다. Hosted write endpoint는 별도 인증 gate입니다."
+    return "read-only UI는 사용할 수 있지만, 공개 snapshot의 데이터 또는 근거 gate가 아직 검토 단계입니다."
+
+
+def _data_observed_label(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "기준 시각 없음"
+    if "T" in text:
+        label = text[:16].replace("T", " ")
+        if text.endswith("+09:00"):
+            return f"{label} KST"
+        return label
+    return text
 
 
 def _render_guardrail_tags(value: Any) -> str:
@@ -1757,6 +1769,10 @@ def render_dashboard(
     ops = ops or {}
     recorded_chat = recorded_chat or {}
     metrics = state.get("metrics", {})
+    source_status = state.get("source_status", {})
+    if not isinstance(source_status, dict):
+        source_status = {}
+    data_observed_label = _data_observed_label(source_status.get("data_observed_at"))
     by_state = summary.get("by_state") if isinstance(summary.get("by_state"), dict) else {}
     total_queue = summary.get("total", len(queue))
     pending = by_state.get("pending_reviewer", _state_count(queue, "pending_reviewer"))
@@ -1985,6 +2001,7 @@ def render_dashboard(
           <strong>Recorded read-only snapshot</strong><br>
           이 GitHub Pages 화면은 public-safe fixture로 생성한 검토 결과입니다.
           승인 버튼과 API write를 포함하지 않으며, 실제 reviewer approval은 인증된 private demo에서만 실행합니다.
+          <br>데이터 기준 시각: {_escape(data_observed_label)}.
           {freshness_note}
         </div>
       </section>
@@ -2063,6 +2080,7 @@ def render_dashboard(
         <span class="sidebar-footer__label">오늘의 결론</span>
         <strong>{_escape(release_label)}</strong>
         <div class="sidebar-footer__meta">
+          <span>Data · {_escape(data_observed_label)}</span>
           <span>RAG · {_escape(vector_store)}</span>
           <span>Auth · {_escape(auth_label)}</span>
         </div>

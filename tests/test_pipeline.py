@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import sys
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -16,8 +18,80 @@ from decisionops_control_tower.pipeline import (
     _build_reviewer_action_plan,
     _build_reviewer_evidence_bundles,
     _build_reviewer_policy_robustness,
+    _load_public_inputs,
     run,
 )
+
+
+PUBLIC_FIXTURE = ROOT / "tests" / "fixtures" / "public_demo_inputs.json"
+
+
+def test_public_fixture_preserves_latest_aggregate_contract(tmp_path):
+    fixture = json.loads(PUBLIC_FIXTURE.read_text(encoding="utf-8"))
+    summary = run(
+        tmp_path,
+        bike_root=tmp_path / "missing-bike-root",
+        workbench_root=tmp_path / "missing-workbench-root",
+        public_inputs_path=PUBLIC_FIXTURE,
+    )
+
+    assert summary["source_status"]["public_snapshot_fixture"] is True
+    assert summary["source_status"]["bike_demo_fallback"] is False
+    assert summary["source_status"]["workbench_demo_fallback"] is False
+    observed_at = fixture["_snapshot"]["source_observed_at"]
+    assert summary["source_status"]["data_observed_at"] == observed_at
+    assert summary["source_status"]["bike_public_deploy_decision"] == "GO"
+    assert summary["source_status"]["seoul_validation_status"] == "READY"
+    assert summary["metrics"]["seoul_snapshot_count"] == int(
+        fixture["bike"]["seoul_validation_summary"]["snapshot_count"]
+    )
+    assert summary["metrics"]["seoul_priority_rows"] == len(
+        fixture["bike"]["seoul_priority"]
+    )
+    assert summary["metrics"]["review_queue_items"] == len(
+        fixture["workbench"]["review_queue"]
+    )
+    assert summary["metrics"]["incident_rows"] == len(
+        fixture["workbench"]["incident_surface"]["incidents"]
+    )
+    assert summary["metrics"]["impact_verified_units"] > 0
+    dashboard = Path(summary["reports"]["dashboard"]).read_text(encoding="utf-8")
+    expected_label = observed_at[:16].replace("T", " ")
+    if observed_at.endswith("+09:00"):
+        expected_label += " KST"
+    assert expected_label in dashboard
+
+
+def test_public_fixture_rejects_missing_required_section(tmp_path):
+    fixture = tmp_path / "missing-workbench.json"
+    fixture.write_text(json.dumps({"bike": {}}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing object section: workbench"):
+        _load_public_inputs(fixture)
+
+
+def test_public_fixture_rejects_local_path_leak(tmp_path):
+    fixture = tmp_path / "local-path.json"
+    fixture.write_text(
+        json.dumps(
+            {
+                "bike": {"report_path": "/DATA/private/report.json"},
+                "workbench": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exposes a local path"):
+        _load_public_inputs(fixture)
+
+
+def test_public_fixture_rejects_missing_snapshot_metadata(tmp_path):
+    fixture = tmp_path / "missing-snapshot.json"
+    fixture.write_text(json.dumps({"bike": {}, "workbench": {}}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing object section: _snapshot"):
+        _load_public_inputs(fixture)
 
 
 def test_control_tower_seed_writes_product_surface(tmp_path):

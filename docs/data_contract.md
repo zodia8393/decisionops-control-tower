@@ -50,7 +50,7 @@
 - Approval history: reviewer가 API/dashboard에서 남긴 chained local decision audit trail.
 - Approval audit integrity: event chain 검산, queue-state replay, 최초 invalid event와 mismatch 수.
 - Ops metrics: artifact freshness, queue summary, auth enabled flag, configured role names, runtime uptime.
-- Deployment readiness: local private demo, container demo, hosted private demo, public deploy의 분리된 GO/NO_GO 판단.
+- Deployment readiness: local private demo, container demo, hosted write API, public read-only snapshot의 분리된 GO/NO_GO 판단.
 - Target: `demo_mode_ready`, `public_deploy_decision`, reviewer approval backlog.
 
 ## 저장 정책
@@ -71,11 +71,12 @@
 | approval SQLite | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/control_tower.sqlite` | 제외 |
 | approval audit integrity | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/reports/approval_audit_integrity.json` | 제외 |
 | deployment readiness | `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower/reports/deployment_readiness.*` | 제외 |
+| public-safe aggregate snapshot | `tests/fixtures/public_demo_inputs.json` | 포함 |
 
 ## 누수 위험
 
 - 이 product slice는 새 모델 학습 split이 아니라 upstream artifact orchestration과 approval workflow다.
-- Public deploy 판단은 upstream readiness를 그대로 반영하고 임의로 `GO`로 바꾸지 않는다.
+- Public read-only 판단은 allowlist aggregate의 upstream readiness와 freshness를 그대로 반영하고 임의로 `GO`로 바꾸지 않는다. Hosted write API는 credential/target gate로 별도 판단한다.
 - Impact card의 후보 단위는 public deploy readiness 전 production 성과가 아니라 reviewer evidence이며, Seoul validation 또는 public deploy readiness가 부족하면 public claim을 차단한다.
 - Policy audit은 unsafe baseline의 미검증 claim 단위를 명시하고 guarded policy가 이를 0으로 낮추는지 검증한다.
 - Evidence bundle은 timezone-aware source timestamp만 허용한다. 3시간 SLA 초과, timestamp 누락/오류/미래 시각은 local approval 후보에서도 제외한다.

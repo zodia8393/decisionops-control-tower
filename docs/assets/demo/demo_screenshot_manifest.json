@@ -1,5 +1,5 @@
 {
-  "captured_at_utc": "2026-07-20T02:58:41+00:00",
+  "captured_at_utc": "2026-07-20T04:02:54+00:00",
   "base_url": "http://127.0.0.1:8099",
   "health": {
     "status": "ok",
@@ -14,11 +14,11 @@
     },
     "auth_required": false,
     "rag": {
-      "vector_store": "qdrant",
+      "vector_store": "memory",
       "embedding_provider": "hashing-char-ngram-v1",
       "vector_size": 384,
       "indexed": true,
-      "corpus_hash": "0dd27e47ddfec712410766e6397b4be979cc0210be24e46aeae1d5c69b1309ed"
+      "corpus_hash": "b23b0304b5c9124c46a41e14508546b4d1124363fccba853416bfef73af8e9b9"
     }
   },
   "captures": [
@@ -28,7 +28,7 @@
       "url": "http://127.0.0.1:8099/dashboard",
       "selector": null,
       "full_page": false,
-      "size_bytes": 185326
+      "size_bytes": 188464
     },
     {
       "name": "dashboard_full_page",
@@ -36,7 +36,7 @@
       "url": "http://127.0.0.1:8099/dashboard",
       "selector": null,
       "full_page": true,
-      "size_bytes": 185326
+      "size_bytes": 188464
     },
     {
       "name": "chat_grounded_response",
@@ -44,14 +44,14 @@
       "url": "http://127.0.0.1:8099/dashboard#decision-chat",
       "selector": "#decision-chat",
       "full_page": false,
-      "size_bytes": 175207
+      "size_bytes": 174835
     },
     {
       "name": "impact_map_section",
       "path": "docs/assets/demo/impact_map_section.png",
       "url": "http://127.0.0.1:8099/dashboard#impact-map",
       "selector": "#impact-map",
-      "size_bytes": 696670
+      "size_bytes": 698296
     },
     {
       "name": "impact_map",
@@ -59,7 +59,7 @@
       "url": "http://127.0.0.1:8099/dashboard#impact-map",
       "selector": "#impact-map",
       "full_page": false,
-      "size_bytes": 765545
+      "size_bytes": 769043
     },
     {
       "name": "policy_audit_section",
@@ -74,7 +74,7 @@
       "url": "http://127.0.0.1:8099/dashboard#policy-audit",
       "selector": "#policy-audit",
       "full_page": false,
-      "size_bytes": 215331
+      "size_bytes": 218570
     },
     {
       "name": "reviewer_policy_robustness_section",
@@ -89,14 +89,14 @@
       "url": "http://127.0.0.1:8099/dashboard#policy-robustness",
       "selector": "#policy-robustness",
       "full_page": false,
-      "size_bytes": 200718
+      "size_bytes": 204137
     },
     {
       "name": "reviewer_action_plan_section",
       "path": "docs/assets/demo/reviewer_action_plan_section.png",
       "url": "http://127.0.0.1:8099/dashboard#action-plan",
       "selector": "#action-plan",
-      "size_bytes": 136461
+      "size_bytes": 136455
     },
     {
       "name": "reviewer_action_plan",
@@ -104,14 +104,14 @@
       "url": "http://127.0.0.1:8099/dashboard#action-plan",
       "selector": "#action-plan",
       "full_page": false,
-      "size_bytes": 266229
+      "size_bytes": 270308
     },
     {
       "name": "reviewer_evidence_bundles_section",
       "path": "docs/assets/demo/reviewer_evidence_bundles_section.png",
       "url": "http://127.0.0.1:8099/dashboard#evidence-bundles",
       "selector": "#evidence-bundles",
-      "size_bytes": 137791
+      "size_bytes": 138623
     },
     {
       "name": "reviewer_evidence_bundles",
@@ -119,7 +119,7 @@
       "url": "http://127.0.0.1:8099/dashboard#evidence-bundles",
       "selector": "#evidence-bundles",
       "full_page": false,
-      "size_bytes": 255039
+      "size_bytes": 259057
     },
     {
       "name": "approval_audit_integrity_section",
@@ -134,7 +134,7 @@
       "url": "http://127.0.0.1:8099/dashboard#approval-audit-integrity",
       "selector": "#approval-audit-integrity",
       "full_page": false,
-      "size_bytes": 164674
+      "size_bytes": 167898
     },
     {
       "name": "reviewer_queue_section",
@@ -149,7 +149,7 @@
       "url": "http://127.0.0.1:8099/dashboard#reviewer-queue",
       "selector": "#reviewer-queue",
       "full_page": false,
-      "size_bytes": 226498
+      "size_bytes": 229742
     },
     {
       "name": "openapi_docs",
@@ -165,7 +165,7 @@
       "url": "http://127.0.0.1:8099/dashboard",
       "selector": null,
       "full_page": false,
-      "size_bytes": 75928
+      "size_bytes": 76224
     },
     {
       "name": "mobile_chat_grounded_response",
@@ -173,7 +173,7 @@
       "url": "http://127.0.0.1:8099/dashboard#decision-chat",
       "selector": "#decision-chat",
       "full_page": false,
-      "size_bytes": 127664
+      "size_bytes": 127696
     }
   ],
   "qa": {

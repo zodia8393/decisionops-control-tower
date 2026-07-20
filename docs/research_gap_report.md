@@ -11,7 +11,7 @@
 | baseline/model/ablation or benchmark | pass | read-only seed 대비 FastAPI/SQLite approval slice로 product-surface ablation 기록 | monitoring surface 확대 |
 | uncertainty/robustness/failure audit | pass | 4 stress scenarios × 3 capacities × 3 policies, safety dominance, oracle regret, selection Jaccard, readiness blocker | prospective realized impact는 upstream gate 후 추가 |
 | product surface | pass | CLI + FastAPI + OpenAPI + dashboard + SQLite approval history + RBAC-lite writes + structured logs + monitoring snapshot + deployment readiness gate + Docker/compose smoke | hosted demo hardening |
-| Seoul impact card | pass | `/api/impact-cards`와 `reports/impact_cards.csv/json`이 추천 action, 후보 이동량, confidence, evidence, blocker를 노출 | Seoul validation READY 후 verified improvement 채우기 |
+| Seoul impact card | pass | validation `READY`, 12개 impact card, 검증 후보 단위 711과 evidence를 노출 | 실제 운영 결과가 생기면 realized impact를 별도 검증 |
 | Impact policy audit | pass | `reports/impact_policy_audit.csv/json`와 `/api/impact-policy-audit`가 unsafe publish 대비 guarded policy의 unsupported claim 차단을 검증 | public deploy GO 후 verified claim row 분리 |
 | Reviewer policy robustness | pass | `/api/reviewer-policy-robustness`와 CSV/JSON이 36-row controlled comparison과 invalid-evidence-first dominance를 재현 | 실제 reviewer feedback으로 utility weight 보정 |
 | Reviewer action plan | pass | `reports/reviewer_action_plan.csv/json`와 `/api/reviewer-action-plan`이 검토 용량 제한 하 local-only 우선순위를 제시 | 실제 운영 reviewer feedback 반영 |
@@ -19,6 +19,6 @@
 | Approval audit integrity | pass | reviewer decision을 SHA-256 chain으로 연결하고 deterministic replay로 현재 queue state와 대조; 변조·state mismatch sad path가 deployment gate를 차단 | 서명된 외부 anchor/원격 attestation은 hosted hardening에서 검토 |
 | AI reviewer agent | pass | `/api/agent/reviewer-brief`, `/api/agent/candidate/{candidate_id}/review-notes`, `reports/agent_reviewer_brief.json`, `reports/agent_candidate_review_notes.json`가 deterministic gate를 source of truth로 둔 read-only 검토 요약을 제공 | LLM planner를 붙일 경우 deterministic fallback regression 유지 |
 | privacy publication gate | pass | raw 내부 data/token/write action 미포함 | release artifact scan 유지 |
-| CI/tests/smoke | pass | 32 tests와 API/dashboard/monitoring smoke 통과; fresh JUnit과 robustness·evidence freshness·audit artifact가 모두 참일 때 quality min 96.0 | 근거 누락 시 95.8 fallback 회귀 유지 |
-| GitHub/deploy/runbook | pass | Dockerfile, compose, `.env.example`, server script, OpenAPI/ops smoke, private demo auth verifier, deployment readiness gate, docker smoke, compose smoke 존재; hosted/public endpoint는 write auth 미설정으로 `NO_GO` | role credential 준비 후 hosted verification |
+| CI/tests/smoke | pass | 81 tests 이상과 API/dashboard/monitoring smoke 통과; robustness·evidence freshness·audit artifact 검증 | public fixture freshness 회귀 유지 |
+| GitHub/deploy/runbook | pass | Pages는 path-sanitized aggregate fixture로 `GO`; hosted write endpoint는 auth 미설정으로 `NO_GO` | role credential 준비 후 hosted verification |
 | Portfolio case study | pass | `docs/case_study.md`와 `docs/demo_package.md`가 문제, 데이터, 제품 surface, 캡처, 검증, 의사결정 경계를 설명 | 캡처 최신성 유지 |

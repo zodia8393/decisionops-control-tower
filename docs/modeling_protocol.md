@@ -67,8 +67,8 @@
 
 ## 불확실성 및 robustness
 
-- Bike-share prospective readiness가 `READY`가 아니면 public deploy는 `NO_GO`다.
-- Seoul validation이 `READY`여도 public deploy readiness가 `GO`가 아니면 public claim은 blocked 상태다.
+- Bike-share prospective readiness가 `READY`가 아니면 public read-only snapshot은 `NO_GO`다.
+- Seoul validation이 `READY`여도 public snapshot readiness가 `GO`가 아니면 public claim은 blocked 상태다. Hosted write API의 인증 gate는 이 판단과 분리한다.
 - NY 511 incident sample은 public historical data이며 live dispatch authority가 아니다.
 - Approval write path는 local SQLite에 제한하고 upstream artifact와 field action은 변경하지 않는다.
 - Agent output은 advisory이며 deterministic gate와 artifact를 덮어쓰지 않는다.

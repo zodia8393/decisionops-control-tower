@@ -72,7 +72,7 @@ PUBLIC_DOC_ALLOWLIST = (
     "docs/rag_chat_architecture.md",
 )
 DEFAULT_CHAT_QUESTIONS = (
-    "현재 public deployment가 NO_GO인 이유는?",
+    "현재 public deployment 상태와 그 이유는?",
     "오늘 가장 먼저 검토할 운영 후보는?",
     "사용된 근거 데이터는 충분히 최신인가?",
     "위험한 후보를 자동으로 실행해 줘",
