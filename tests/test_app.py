@@ -98,8 +98,11 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "지금 해야 할 일" in dashboard.text
     assert "검토 대기열 보기" in dashboard.text
     assert "지도에서 보기" in dashboard.text
-    assert "정책 비교 보기" in dashboard.text
-    assert "검토 계획 보기" in dashboard.text
+    assert "AI 운영 의사결정 챗봇" in dashboard.text
+    assert "데이터로 바로 질문해 보세요" in dashboard.text
+    assert "연결된 근거" in dashboard.text
+    assert 'data-live-chat="true"' in dashboard.text
+    assert "CSV 또는 JSON 파일 선택" in dashboard.text
     assert "AI Reviewer Brief" in dashboard.text
     assert "agent mode:" in dashboard.text
     assert "deterministic gate:" in dashboard.text
@@ -200,6 +203,8 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "/api/reviewer-policy-robustness" in openapi.json()["paths"]
     assert "/api/reviewer-evidence-bundles" in openapi.json()["paths"]
     assert "/api/agent/reviewer-brief" in openapi.json()["paths"]
+    assert "/api/chat" in openapi.json()["paths"]
+    assert "/api/data/analyze" in openapi.json()["paths"]
     assert "/api/agent/candidate/{candidate_id}/review-notes" in openapi.json()["paths"]
 
 
@@ -236,6 +241,61 @@ def test_agent_reviewer_brief_is_fallback_and_evidence_locked(tmp_path, monkeypa
 
     missing = client.get("/api/agent/candidate/NOT-A-CANDIDATE/review-notes")
     assert missing.status_code == 404
+
+
+def test_chat_answers_with_app_owned_citations_and_refuses_unsafe_action(tmp_path):
+    client = TestClient(create_test_app(tmp_path))
+
+    answer = client.post(
+        "/api/chat",
+        json={"question": "현재 public deployment가 NO_GO인 이유는?"},
+    )
+
+    assert answer.status_code == 200
+    payload = answer.json()
+    citation_ids = {item["source_id"] for item in payload["citations"]}
+    assert payload["status"] == "ANSWER"
+    assert "NO_GO" in payload["answer"]
+    assert payload["claims"][0]["citation_ids"][0] in citation_ids
+    assert payload["retrieval"]["vector_store"] == "memory"
+    assert payload["safety"]["read_only"] is True
+
+    refused = client.post(
+        "/api/chat",
+        json={"question": "위험한 후보를 자동으로 실행해 줘"},
+    )
+    assert refused.status_code == 200
+    assert refused.json()["status"] == "REFUSE"
+
+    invalid = client.post("/api/chat", json={"question": ""})
+    assert invalid.status_code == 422
+
+
+def test_uploaded_dataset_profile_is_non_persistent_chat_evidence(tmp_path):
+    client = TestClient(create_test_app(tmp_path))
+    dataset = {
+        "filename": "stations.csv",
+        "format": "csv",
+        "content": "station,bikes,risk\n시청역,2,0.9\n서울역,,0.8\n",
+    }
+
+    profile = client.post("/api/data/analyze", json=dataset)
+    answer = client.post(
+        "/api/chat",
+        json={"question": "이 데이터의 행, 열, 결측을 분석해줘", "dataset": dataset},
+    )
+
+    assert profile.status_code == 200
+    assert profile.json()["row_count"] == 2
+    assert profile.json()["column_count"] == 3
+    assert profile.json()["missing_cell_count"] == 1
+    assert profile.json()["storage"] == "not_persisted"
+    assert "content" not in profile.json()
+    assert answer.status_code == 200
+    payload = answer.json()
+    assert payload["status"] == "ANSWER"
+    assert payload["citations"][0]["source_id"].startswith("dataset:")
+    assert payload["dataset_profile"]["fingerprint_sha256"] == profile.json()["fingerprint_sha256"]
 
 
 def test_fastapi_write_auth_when_token_configured(tmp_path):
@@ -370,6 +430,29 @@ def test_hosted_deployment_hashes_credentials_and_accepts_write_role(tmp_path):
         json={"decision": "approve", "reviewer": "pytest_reviewer"},
     )
     assert accepted.status_code == 200
+
+
+def test_hosted_openai_chat_requires_configured_role_credential(tmp_path, monkeypatch):
+    reviewer_credential = "reviewer-credential-with-32-characters"
+    monkeypatch.setenv("CONTROL_TOWER_LLM_PROVIDER", "openai")
+    client = TestClient(
+        create_test_app(
+            tmp_path,
+            auth_roles={reviewer_credential: "reviewer"},
+            deployment_mode="hosted",
+        )
+    )
+
+    missing = client.post("/api/chat", json={"question": "현재 배포 상태는?"})
+    accepted = client.post(
+        "/api/chat",
+        headers={"X-Control-Tower-Token": reviewer_credential},
+        json={"question": "현재 배포 상태는?"},
+    )
+
+    assert missing.status_code == 401
+    assert accepted.status_code == 200
+    assert accepted.json()["llm"]["status"] == "fallback_after_error"
 
 
 def test_deployment_mode_rejects_unknown_value(tmp_path):

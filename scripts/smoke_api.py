@@ -59,6 +59,13 @@ def _smoke_basic(args: argparse.Namespace) -> None:
         raise AssertionError("approval audit integrity smoke failed")
     agent = client.get("/api/agent/reviewer-brief")
     agent.raise_for_status()
+    chat = client.post(
+        "/api/chat",
+        json={"question": "현재 public deployment가 NO_GO인 이유는?"},
+    )
+    chat.raise_for_status()
+    if not chat.json().get("citations"):
+        raise AssertionError("RAG chat smoke expected at least one citation")
     first_impact = impact.json()["items"][0]
     candidate = client.get(f"/api/agent/candidate/{first_impact['impact_card_id']}/review-notes")
     candidate.raise_for_status()
@@ -80,6 +87,8 @@ def _smoke_basic(args: argparse.Namespace) -> None:
         f"evidence_bundles={evidence_bundles.json()['count']}, "
         f"audit_integrity={audit_integrity.json()['status']}, "
         f"agent_mode={agent.json()['mode']}, "
+        f"chat_status={chat.json()['status']}, "
+        f"vector_store={chat.json()['retrieval']['vector_store']}, "
         f"auth_required={payload['auth_required']}, "
         f"public_deploy_decision={payload['public_deploy_decision']}"
     )

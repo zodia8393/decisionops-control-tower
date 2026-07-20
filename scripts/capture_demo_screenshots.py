@@ -60,6 +60,8 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
     output_dir.mkdir(parents=True, exist_ok=True)
     browser_path = _find_browser()
     captures: list[dict[str, Any]] = []
+    console_errors: list[str] = []
+    qa: dict[str, Any] = {}
 
     with sync_playwright() as p:
         launch_args = {"headless": True, "args": ["--no-sandbox"]}
@@ -72,6 +74,10 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
             locale="ko-KR",
         )
         page = context.new_page()
+        page.on(
+            "console",
+            lambda message: console_errors.append(message.text) if message.type == "error" else None,
+        )
         page.set_default_timeout(timeout_ms)
 
         def capture(name: str, path: str, selector: str | None = None, *, full_page: bool = False) -> None:
@@ -103,6 +109,25 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
 
         capture("dashboard_overview", "/dashboard", full_page=False)
         capture("dashboard_full_page", "/dashboard", full_page=True)
+        page.goto(base_url.rstrip("/") + "/dashboard", wait_until="networkidle")
+        page.locator("[data-chat-question]").first.click()
+        page.locator(".chat-response-meta").wait_for(state="visible")
+        page.wait_for_timeout(300)
+        page.locator("#decision-chat").screenshot(
+            path=_shot_path(output_dir, "chat_grounded_response")
+        )
+        captures.append(
+            {
+                "name": "chat_grounded_response",
+                "path": str(_shot_path(output_dir, "chat_grounded_response")),
+                "url": base_url.rstrip("/") + "/dashboard#decision-chat",
+                "selector": "#decision-chat",
+                "full_page": False,
+            }
+        )
+        qa["desktop_horizontal_overflow"] = page.evaluate(
+            "document.documentElement.scrollWidth > document.documentElement.clientWidth"
+        )
         capture("impact_map", "/dashboard#impact-map", "#impact-map")
         capture("policy_audit", "/dashboard#policy-audit", "#policy-audit")
         capture(
@@ -124,8 +149,51 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
         capture("reviewer_queue", "/dashboard#reviewer-queue", "#reviewer-queue")
         capture("openapi_docs", "/docs", full_page=False)
         context.close()
+
+        mobile_context = browser.new_context(
+            viewport={"width": 390, "height": 844},
+            device_scale_factor=1,
+            locale="ko-KR",
+        )
+        mobile = mobile_context.new_page()
+        mobile.on(
+            "console",
+            lambda message: console_errors.append(message.text) if message.type == "error" else None,
+        )
+        mobile.set_default_timeout(timeout_ms)
+        mobile.goto(base_url.rstrip("/") + "/dashboard", wait_until="networkidle")
+        mobile.screenshot(path=_shot_path(output_dir, "mobile_overview"), full_page=False)
+        captures.append(
+            {
+                "name": "mobile_overview",
+                "path": str(_shot_path(output_dir, "mobile_overview")),
+                "url": base_url.rstrip("/") + "/dashboard",
+                "selector": None,
+                "full_page": False,
+            }
+        )
+        mobile.locator("[data-chat-question]").first.click()
+        mobile.locator(".chat-response-meta").wait_for(state="visible")
+        mobile.wait_for_timeout(300)
+        mobile.locator("#decision-chat").screenshot(
+            path=_shot_path(output_dir, "mobile_chat_grounded_response")
+        )
+        captures.append(
+            {
+                "name": "mobile_chat_grounded_response",
+                "path": str(_shot_path(output_dir, "mobile_chat_grounded_response")),
+                "url": base_url.rstrip("/") + "/dashboard#decision-chat",
+                "selector": "#decision-chat",
+                "full_page": False,
+            }
+        )
+        qa["mobile_horizontal_overflow"] = mobile.evaluate(
+            "document.documentElement.scrollWidth > document.documentElement.clientWidth"
+        )
+        mobile_context.close()
         browser.close()
 
+    health = _require_healthy(base_url)
     manifest = {
         "captured_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "base_url": base_url,
@@ -136,6 +204,7 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
             "impact_card_rows": health.get("impact_card_rows"),
             "queue": health.get("queue"),
             "auth_required": health.get("auth_required"),
+            "rag": health.get("rag"),
         },
         "captures": [
             {
@@ -144,6 +213,10 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
             }
             for item in captures
         ],
+        "qa": {
+            **qa,
+            "console_errors": console_errors,
+        },
     }
     manifest_path = output_dir / "demo_screenshot_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

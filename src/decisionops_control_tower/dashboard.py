@@ -6,6 +6,8 @@ import html
 import math
 from typing import Any
 
+from decisionops_control_tower.chat_ui import CHAT_CSS, render_chat_surface
+
 
 DASHBOARD_CSS = """
 :root {
@@ -1257,13 +1259,13 @@ def _empty_row(colspan: int, text: str) -> str:
 
 
 def _release_label(public_deploy: Any) -> str:
-    return "공개 배포 가능" if str(public_deploy) == "GO" else "공개 배포 보류"
+    return "운영 배포 가능" if str(public_deploy) == "GO" else "운영 배포 보류"
 
 
 def _release_summary(public_deploy: Any) -> str:
     if str(public_deploy) == "GO":
         return "필수 검증과 readiness gate를 통과했습니다. 그래도 승인 이력은 남기고 배포하세요."
-    return "아직 외부 공개나 성과 claim을 하면 안 됩니다. 검토자는 후보 조치와 근거만 확인합니다."
+    return "공개 read-only 데모는 사용할 수 있지만, 운영 endpoint와 성과 claim은 아직 검토 단계입니다."
 
 
 def _render_guardrail_tags(value: Any) -> str:
@@ -1575,6 +1577,7 @@ def render_dashboard(
     history: list[dict[str, Any]] | None = None,
     summary: dict[str, Any] | None = None,
     ops: dict[str, Any] | None = None,
+    recorded_chat: dict[str, dict[str, Any]] | None = None,
     include_actions: bool = True,
     include_script: bool = True,
 ) -> str:
@@ -1588,6 +1591,7 @@ def render_dashboard(
     audit_integrity = audit_integrity or {}
     summary = summary or {}
     ops = ops or {}
+    recorded_chat = recorded_chat or {}
     metrics = state.get("metrics", {})
     by_state = summary.get("by_state") if isinstance(summary.get("by_state"), dict) else {}
     total_queue = summary.get("total", len(queue))
@@ -1606,6 +1610,13 @@ def render_dashboard(
     p0_pending = _priority_count(queue, "P0")
     release_label = _release_label(public_deploy)
     audit_status = str(audit_integrity.get("status", "unknown")).upper()
+    rag_status = ops.get("rag", {}) if isinstance(ops.get("rag"), dict) else {}
+    vector_store = str(rag_status.get("vector_store", "memory"))
+    chat_surface = render_chat_surface(
+        recorded_chat,
+        live_chat=include_actions,
+        vector_store=vector_store,
+    )
 
     action_header = ["무엇을 검토하나", "긴급도", "처리 상태", "확인 필요 이유"]
     if include_actions:
@@ -1704,35 +1715,30 @@ def render_dashboard(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f5f8c'/%3E%3Cpath d='M18 20h28v8H18zM18 36h18v8H18z' fill='white'/%3E%3C/svg%3E">
-  <title>DecisionOps Control Tower</title>
-  <style>{DASHBOARD_CSS}</style>
+  <title>AI 운영 의사결정 챗봇 · DecisionOps</title>
+  <style>{DASHBOARD_CSS}{CHAT_CSS}</style>
 </head>
 <body data-auth-required="{str(bool(ops.get("auth_required"))).lower()}">
   <div class="app-shell">
     <header class="hero">
       <div class="hero__inner">
         <div class="topline">
-          <span class="eyebrow">DecisionOps Control Tower</span>
+          <span class="eyebrow">DecisionOps Control Tower · Evidence-grounded AI</span>
           {_pill(status)}
           {_pill(public_deploy, f"공개 배포 {public_deploy}")}
         </div>
         <div class="hero__grid">
           <div>
-            <h1>오늘의 결론: {release_label}</h1>
+            <h1>AI 운영 의사결정 챗봇</h1>
             <p class="hero__copy">
-              {_escape(_release_summary(public_deploy))}
-              이 화면은 서울 따릉이 후보 조치와 모델 권고를 검토하고, 승인 이력을 남기기 위한 운영용 dashboard입니다.
+              주어진 데이터를 자동으로 분석해, 근거가 연결된 판단을 제공하고 위험한 요청은 거부합니다.
+              오늘의 결론은 <strong>{_escape(release_label)}</strong>이며, {_escape(_release_summary(public_deploy))}
             </p>
             <nav class="hero__actions" aria-label="주요 dashboard actions">
+              <a class="button button--primary" href="#decision-chat">데이터로 질문하기</a>
               <a class="button button--primary" href="#reviewer-queue">검토 대기열 보기</a>
               <a class="button" href="#impact-map">지도에서 보기</a>
-              <a class="button" href="#impact-cards">따릉이 후보 조치 보기</a>
-              <a class="button" href="#policy-audit">정책 비교 보기</a>
-              <a class="button" href="#policy-robustness">Stress test 보기</a>
-              <a class="button" href="#action-plan">검토 계획 보기</a>
               <a class="button" href="#evidence-bundles">근거 패킷 보기</a>
-              <a class="button" href="#approval-audit-integrity">감사 무결성 보기</a>
-              <a class="button" href="#blockers">보류 이유 보기</a>
             </nav>
           </div>
           <aside class="readiness-panel" aria-label="지금 해야 할 일">
@@ -1740,15 +1746,15 @@ def render_dashboard(
             <ol class="todo-list">
               <li>
                 <span class="todo-index">1</span>
-                <span><strong>{p0_pending}건의 긴급 항목부터 확인</strong><span class="todo-detail">P0 항목은 먼저 승인/반려/근거 요청을 결정합니다.</span></span>
+                <span><strong>데이터와 문서를 함께 검색</strong><span class="todo-detail">수치는 API에서, 설명은 vector retrieval에서 찾습니다.</span></span>
               </li>
               <li>
                 <span class="todo-index">2</span>
-                <span><strong>따릉이 후보 조치의 근거 확인</strong><span class="todo-detail">검증 전 상태이면 외부 성과 claim으로 쓰지 않습니다.</span></span>
+                <span><strong>판단마다 출처 연결</strong><span class="todo-detail">Evidence drawer에서 field, section, freshness를 확인합니다.</span></span>
               </li>
               <li>
                 <span class="todo-index">3</span>
-                <span><strong>결정은 local audit에만 저장</strong><span class="todo-detail">버튼은 현장 작업을 실행하지 않고 검토 기록만 남깁니다.</span></span>
+                <span><strong>위험한 요청은 사람에게 전달</strong><span class="todo-detail">AI는 실행하지 않고 거부 또는 review 상태로 전환합니다.</span></span>
               </li>
             </ol>
           </aside>
@@ -1756,6 +1762,7 @@ def render_dashboard(
       </div>
     </header>
     <main class="main">
+      {chat_surface}
       {snapshot_notice}
       <section class="section" aria-label="의사결정 지표">
         <div class="section__header">

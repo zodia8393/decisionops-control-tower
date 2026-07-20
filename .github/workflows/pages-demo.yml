@@ -5,6 +5,9 @@ on:
     branches: ["main"]
     paths:
       - "src/decisionops_control_tower/**"
+      - "README.md"
+      - "docs/**"
+      - "tests/fixtures/rag_golden_questions.json"
       - "scripts/run_all.sh"
       - "scripts/smoke_public_demo.py"
       - "requirements.txt"

@@ -12,6 +12,10 @@ from urllib.request import Request, urlopen
 DEFAULT_URL = "https://zodia8393.github.io/decisionops-control-tower/"
 REQUIRED_MARKERS = (
     "DecisionOps Control Tower",
+    "AI 운영 의사결정 챗봇",
+    "데이터로 바로 질문해 보세요",
+    'data-live-chat="false"',
+    "Recorded · read-only",
     "Recorded read-only snapshot",
     "승인 버튼과 API write를 포함하지 않으며",
 )
@@ -19,6 +23,7 @@ FORBIDDEN_MARKERS = (
     'data-decision="',
     'fetch(`/api/review-queue/',
     "X-Control-Tower-Token",
+    'data-live-chat="true"',
 )
 
 

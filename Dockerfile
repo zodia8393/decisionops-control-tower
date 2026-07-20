@@ -5,6 +5,7 @@ WORKDIR /app
 COPY requirements.txt pyproject.toml README.md ./
 COPY src ./src
 COPY scripts ./scripts
+COPY docs ./docs
 
 RUN python -m pip install --no-cache-dir --upgrade pip \
     && python -m pip install --no-cache-dir -r requirements.txt

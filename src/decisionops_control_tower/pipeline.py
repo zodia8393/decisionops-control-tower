@@ -23,6 +23,7 @@ from decisionops_control_tower.agent import (
     build_fallback_reviewer_brief,
 )
 from decisionops_control_tower.dashboard import render_dashboard
+from decisionops_control_tower.rag import build_recorded_chat
 from decisionops_control_tower.store import verify_audit_integrity
 
 
@@ -1117,6 +1118,16 @@ def _build_api_contract() -> dict[str, Any]:
                 "returns": "read-only evidence-grounded reviewer brief with deterministic claim-safety lock",
             },
             {
+                "method": "POST",
+                "path": "/api/chat",
+                "returns": "read-only hybrid retrieval answer with application-owned citations and safety status",
+            },
+            {
+                "method": "POST",
+                "path": "/api/data/analyze",
+                "returns": "bounded non-persistent CSV/JSON profile without raw content echo",
+            },
+            {
                 "method": "GET",
                 "path": "/api/agent/candidate/{candidate_id}/review-notes",
                 "returns": "read-only candidate-level review notes without approval writes",
@@ -1128,6 +1139,7 @@ def _build_api_contract() -> dict[str, Any]:
         "logging_policy": "FastAPI middleware emits structured JSON request logs without secret/header values",
         "monitoring_policy": "scripts/write_monitoring_snapshot.py writes ops_metrics_snapshot.json and appends ops_metrics_history.jsonl",
         "deployment_policy": "GitHub Pages publishes a read-only snapshot; scripts/write_deployment_readiness.py writes separate local/container/hosted/public GO/NO_GO decisions without credential values",
+        "rag_policy": "structured facts remain authoritative; Qdrant is used for document retrieval in local/container mode and citations are resolved from indexed source IDs",
     }
 
 
@@ -1144,6 +1156,15 @@ def _write_dashboard(
     agent_brief: dict[str, Any],
 ) -> None:
     ops = {"auth_required": False, "configured_roles": [], "artifacts": {}}
+    sources = {
+        "state": state,
+        "queue": queue,
+        "impact_cards": impact_cards,
+        "impact_policy_audit": policy_audit,
+        "reviewer_policy_robustness": policy_robustness,
+        "reviewer_action_plan": action_plan,
+        "reviewer_evidence_bundles": evidence_bundles,
+    }
     path.write_text(
         render_dashboard(
             state=state,
@@ -1157,6 +1178,7 @@ def _write_dashboard(
             summary={"total": len(queue), "by_state": {"pending_reviewer": len(queue)}},
             ops=ops,
             agent_brief=agent_brief,
+            recorded_chat=build_recorded_chat(sources, PROJECT_ROOT),
             include_actions=False,
             include_script=False,
         ),

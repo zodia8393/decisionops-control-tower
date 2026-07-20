@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decisionops-control-tower"
-version = "0.1.0"
-description = "Weekend data science portfolio project."
+version = "0.2.0"
+description = "Evidence-grounded AI operations decision chatbot with guarded RAG and human review."
 requires-python = ">=3.10"
 dependencies = [
   "numpy",

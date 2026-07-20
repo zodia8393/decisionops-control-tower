@@ -50,7 +50,7 @@ def static_dashboard() -> str:
 def test_static_dashboard_satisfies_public_read_only_contract():
     result = validate_demo_html(static_dashboard())
 
-    assert result == {"required_marker_count": 3, "forbidden_marker_count": 3}
+    assert result == {"required_marker_count": 7, "forbidden_marker_count": 4}
 
 
 def test_static_dashboard_explains_non_fresh_evidence():
