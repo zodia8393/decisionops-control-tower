@@ -47,4 +47,4 @@ DecisionOps Suite의 기술 구성은 충분하지만 첫 방문자가 제품을
 
 ## 현재 판단
 
-Chat-first vertical slice의 구현·정량 검증·시각 증거와 로컬 release gate를 완료했다. 전체 regression 78건, 실제 Qdrant golden evaluation, Compose app+Qdrant smoke, public snapshot smoke, README/상위 portfolio 동기화가 모두 통과했다. 남은 remote gate는 GitHub CI와 Pages 배포 확인이다. Hosted write API는 배포 target secret이 없으므로 기존 의도대로 `NO_GO`를 유지한다.
+Chat-first vertical slice의 구현·정량 검증·시각 증거와 release gate를 완료했다. 전체 regression 78건, 실제 Qdrant golden evaluation, Compose app+Qdrant smoke, public snapshot smoke, README/상위 portfolio 동기화가 모두 통과했다. Control Tower PR #6과 suite README PR 3건을 main에 병합했고, main CI·private demo smoke·Pages 배포 및 공개 URL read-only smoke도 성공했다. Hosted write API는 배포 target secret이 없으므로 기존 의도대로 `NO_GO`를 유지한다.
