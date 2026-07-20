@@ -68,6 +68,10 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "AI 운영 의사결정 챗봇" in dashboard_html
     assert "데이터로 바로 질문해 보세요" in dashboard_html
     assert "연결된 근거" in dashboard_html
+    assert 'class="app-sidebar"' in dashboard_html
+    assert 'data-workspace-panel="chat"' in dashboard_html
+    assert 'id="workspace-summary"' in dashboard_html
+    assert "activatePanel" in dashboard_html
     assert 'data-live-chat="false"' in dashboard_html
     assert "Recorded · read-only" in dashboard_html
     assert "AI Reviewer Brief" in dashboard_html

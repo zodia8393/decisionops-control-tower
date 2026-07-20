@@ -109,6 +109,25 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
 
         capture("dashboard_overview", "/dashboard", full_page=False)
         capture("dashboard_full_page", "/dashboard", full_page=True)
+        desktop_targets = [
+            "summary",
+            "candidates",
+            "policy",
+            "evidence",
+            "review",
+            "system",
+            "chat",
+        ]
+        for target in desktop_targets:
+            page.locator(f'[data-panel-target="{target}"]').click()
+            visible_panels = page.locator("[data-workspace-panel]:visible")
+            if visible_panels.count() != 1:
+                raise AssertionError(f"desktop sidebar exposed multiple panels after selecting {target}")
+            if visible_panels.get_attribute("data-workspace-panel") != target:
+                raise AssertionError(f"desktop sidebar did not activate {target}")
+        qa["desktop_sidebar_navigation"] = "7/7"
+        qa["desktop_default_panel"] = "chat"
+
         page.goto(base_url.rstrip("/") + "/dashboard", wait_until="networkidle")
         page.locator("[data-chat-question]").first.click()
         page.locator(".chat-response-meta").wait_for(state="visible")
@@ -172,6 +191,30 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
                 "full_page": False,
             }
         )
+        mobile.locator("[data-sidebar-toggle]").click()
+        mobile.wait_for_timeout(250)
+        drawer_box = mobile.locator("#app-sidebar").bounding_box()
+        if (
+            not mobile.locator("body").evaluate("node => node.classList.contains('sidebar-open')")
+            or drawer_box is None
+            or drawer_box["x"] < -1
+        ):
+            raise AssertionError("mobile sidebar drawer did not open")
+        mobile.locator('[data-panel-target="summary"]').click()
+        if not mobile.locator("#workspace-summary").is_visible():
+            raise AssertionError("mobile sidebar did not activate the summary panel")
+        if mobile.locator("#workspace-chat").is_visible():
+            raise AssertionError("mobile sidebar left the chat panel visible with the summary panel")
+        if mobile.locator("body").evaluate("node => node.classList.contains('sidebar-open')"):
+            raise AssertionError("mobile sidebar drawer did not close after navigation")
+        mobile.locator("[data-sidebar-toggle]").click()
+        mobile.wait_for_timeout(250)
+        mobile.locator('[data-panel-target="chat"]').click()
+        if not mobile.locator("#workspace-chat").is_visible():
+            raise AssertionError("mobile sidebar did not return to the chat panel")
+        qa["mobile_sidebar_drawer"] = "PASS"
+        qa["mobile_sidebar_navigation"] = "summary → chat"
+
         mobile.locator("[data-chat-question]").first.click()
         mobile.locator(".chat-response-meta").wait_for(state="visible")
         mobile.wait_for_timeout(300)
@@ -192,6 +235,11 @@ def capture_screenshots(base_url: str, output_dir: Path, timeout_ms: int = 15000
         )
         mobile_context.close()
         browser.close()
+
+    if qa.get("desktop_horizontal_overflow") or qa.get("mobile_horizontal_overflow"):
+        raise AssertionError("dashboard has horizontal overflow")
+    if console_errors:
+        raise AssertionError(f"dashboard emitted browser console errors: {console_errors}")
 
     health = _require_healthy(base_url)
     manifest = {

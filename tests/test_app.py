@@ -95,7 +95,11 @@ def test_fastapi_validation_and_dashboard(tmp_path):
     assert "승인 감사 무결성" in dashboard.text
     assert "State replay" in dashboard.text
     assert "오늘의 결론" in dashboard.text
-    assert "지금 해야 할 일" in dashboard.text
+    assert 'class="app-sidebar"' in dashboard.text
+    assert 'data-panel-target="chat"' in dashboard.text
+    assert 'data-workspace-panel="chat"' in dashboard.text
+    assert 'id="workspace-summary"' in dashboard.text
+    assert "workspace-panel[hidden]" in dashboard.text
     assert "검토 대기열 보기" in dashboard.text
     assert "지도에서 보기" in dashboard.text
     assert "AI 운영 의사결정 챗봇" in dashboard.text

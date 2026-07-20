@@ -9,6 +9,8 @@
 
 CSV/JSON 또는 기존 DecisionOps 산출물을 분석하고, structured facts + lexical retrieval + Qdrant vector search로 근거를 찾습니다. 답변의 source·field·freshness·content hash를 직접 열어볼 수 있으며, 실행·승인·공개·민감정보 요청은 deterministic guardrail이 차단합니다.
 
+기본 화면은 챗봇 하나에 집중합니다. 운영 요약, 후보 지도, 정책 검증, 근거 패킷, 검토 대기열과 시스템 상태는 왼쪽 사이드바에서 필요한 항목만 한 번에 하나씩 열어볼 수 있습니다.
+
 <p align="center">
   <a href="https://zodia8393.github.io/decisionops-control-tower/"><strong>▶ 브라우저에서 바로 체험</strong></a>
   &nbsp;·&nbsp;
