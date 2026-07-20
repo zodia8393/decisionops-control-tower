@@ -1,9 +1,19 @@
 services:
+  qdrant:
+    image: qdrant/qdrant:v1.18.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
   control-tower:
     build:
       context: .
     image: ${IMAGE_NAME:-decisionops-control-tower:local}
     restart: unless-stopped
+    depends_on:
+      - qdrant
     ports:
       - "127.0.0.1:${PORT:-8093}:8093"
     environment:
@@ -16,8 +26,15 @@ services:
       CONTROL_TOWER_DEPLOYMENT_MODE: ${CONTROL_TOWER_DEPLOYMENT_MODE:-local}
       CONTROL_TOWER_API_TOKEN: ${CONTROL_TOWER_API_TOKEN:-}
       CONTROL_TOWER_ROLE_TOKENS: ${CONTROL_TOWER_ROLE_TOKENS:-}
+      CONTROL_TOWER_VECTOR_STORE: qdrant
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-decisionops_evidence}
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+      CONTROL_TOWER_LLM_PROVIDER: ${CONTROL_TOWER_LLM_PROVIDER:-}
+      CONTROL_TOWER_LLM_MODEL: ${CONTROL_TOWER_LLM_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
-      - /DATA/HJ/prj/data-scientist-career/projects:/DATA/HJ/prj/data-scientist-career/projects
+      - ${DECISIONOPS_PROJECTS_ROOT:-decisionops-data}:/DATA/HJ/prj/data-scientist-career/projects
     healthcheck:
       test:
         [
@@ -30,3 +47,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  qdrant-data:
+  decisionops-data:

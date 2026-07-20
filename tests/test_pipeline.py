@@ -64,10 +64,12 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "오늘의 결론" in dashboard_html
     assert "검토 대기열 보기" in dashboard_html
     assert "지도에서 보기" in dashboard_html
-    assert "정책 비교 보기" in dashboard_html
-    assert "Stress test 보기" in dashboard_html
-    assert "검토 계획 보기" in dashboard_html
     assert "근거 패킷 보기" in dashboard_html
+    assert "AI 운영 의사결정 챗봇" in dashboard_html
+    assert "데이터로 바로 질문해 보세요" in dashboard_html
+    assert "연결된 근거" in dashboard_html
+    assert 'data-live-chat="false"' in dashboard_html
+    assert "Recorded · read-only" in dashboard_html
     assert "AI Reviewer Brief" in dashboard_html
     assert "agent mode:" in dashboard_html
     assert "deterministic gate:" in dashboard_html
@@ -111,6 +113,8 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     api_contract = json.loads(Path(summary["reports"]["api_contract"]).read_text(encoding="utf-8"))
     paths = {item["path"] for item in api_contract["endpoints"]}
     assert "/api/agent/reviewer-brief" in paths
+    assert "/api/chat" in paths
+    assert "/api/data/analyze" in paths
     assert "/api/agent/candidate/{candidate_id}/review-notes" in paths
     assert "/api/reviewer-evidence-bundles" in paths
     assert "/api/reviewer-policy-robustness" in paths

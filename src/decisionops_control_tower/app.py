@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from decisionops_control_tower.agent import build_candidate_review_notes, build_reviewer_brief
+from decisionops_control_tower.data_analysis import DatasetAnalysisError, analyze_dataset
 from decisionops_control_tower.dashboard import render_dashboard
 from decisionops_control_tower.pipeline import (
     DEFAULT_BIKE_ROOT,
@@ -24,6 +25,7 @@ from decisionops_control_tower.pipeline import (
     DEFAULT_WORKBENCH_ROOT,
     run,
 )
+from decisionops_control_tower.rag import RagService, RagUnavailableError, build_recorded_chat
 from decisionops_control_tower.store import (
     database_path,
     initialize_store,
@@ -39,6 +41,18 @@ class DecisionRequest(BaseModel):
     decision: Literal["approve", "reject", "needs_more_evidence"]
     reviewer: str = Field(default="ops_reviewer", min_length=1, max_length=80)
     note: str = Field(default="", max_length=1000)
+
+
+class DatasetInput(BaseModel):
+    filename: str = Field(min_length=1, max_length=120)
+    format: Literal["csv", "json"]
+    content: str = Field(min_length=1, max_length=1_000_000)
+
+
+class ChatRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=1000)
+    top_k: int = Field(default=3, ge=1, le=8)
+    dataset: DatasetInput | None = None
 
 
 LOGGER = logging.getLogger("decisionops_control_tower")
@@ -181,6 +195,7 @@ def create_app(
     auth_token: str | None = None,
     auth_roles: dict[str, str] | None = None,
     deployment_mode: str | None = None,
+    rag_service: RagService | None = None,
 ) -> FastAPI:
     _configure_logging()
     root = Path(output_root) if output_root is not None else _env_path("OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT)
@@ -192,9 +207,12 @@ def create_app(
     )
     runtime_mode = _deployment_mode(deployment_mode)
     app = FastAPI(
-        title="DecisionOps Control Tower",
-        version="0.1.0",
-        description="FastAPI/SQLite reviewer workflow for the DecisionOps AI suite.",
+        title="DecisionOps AI Operations Chatbot",
+        version="0.2.0",
+        description=(
+            "Evidence-grounded hybrid RAG chatbot with dataset profiling, clickable citations, "
+            "deterministic safety gates, and a human reviewer workflow."
+        ),
     )
     app.state.output_root = root
     app.state.bike_root = bike
@@ -202,6 +220,8 @@ def create_app(
     app.state.refresh_artifacts = refresh_artifacts
     app.state.deployment_mode = runtime_mode
     app.state.auth_roles = _configured_auth_roles(auth_token, auth_roles, runtime_mode)
+    app.state.rag_service = rag_service or RagService()
+    app.state.project_root = Path(__file__).resolve().parents[2]
     app.state.started_at = time.time()
     app.state.ready = False
 
@@ -315,6 +335,7 @@ def create_app(
             "demo_mode_ready": bool(state.get("demo_mode_ready")),
             "queue": queue_summary(app.state.output_root),
             "approval_audit_integrity": audit_integrity,
+            "rag": app.state.rag_service.status(),
             "artifacts": artifacts,
         }
 
@@ -363,6 +384,8 @@ def create_app(
             "reviewer_action_plan": "/api/reviewer-action-plan",
             "reviewer_evidence_bundles": "/api/reviewer-evidence-bundles",
             "agent_reviewer_brief": "/api/agent/reviewer-brief",
+            "chat": "/api/chat",
+            "analyze_dataset": "/api/data/analyze",
             "ops": "/api/ops-metrics",
             "approval_audit_integrity": "/api/approval-audit-integrity",
             "openapi": "/docs",
@@ -394,6 +417,7 @@ def create_app(
             "auth_required": bool(app.state.auth_roles),
             "configured_roles": sorted(set(app.state.auth_roles.values())),
             "deployment_mode": app.state.deployment_mode,
+            "rag": app.state.rag_service.status(),
             "database": str(database_path(app.state.output_root)),
             "output_root": str(app.state.output_root),
         }
@@ -540,6 +564,52 @@ def create_app(
             ops=ops_metrics(),
         )
 
+    @app.post("/api/chat")
+    def chat(
+        payload: ChatRequest,
+        x_control_tower_token: str | None = Header(
+            default=None,
+            alias="X-Control-Tower-Token",
+        ),
+    ) -> dict[str, Any]:
+        ensure_ready()
+        if (
+            app.state.deployment_mode == "hosted"
+            and os.environ.get("CONTROL_TOWER_LLM_PROVIDER", "").strip().lower() == "openai"
+        ):
+            resolve_role(x_control_tower_token)
+        try:
+            dataset_profile = None
+            if payload.dataset is not None:
+                dataset_profile = analyze_dataset(
+                    filename=payload.dataset.filename,
+                    data_format=payload.dataset.format,
+                    content=payload.dataset.content,
+                )
+            return app.state.rag_service.answer(
+                question=payload.question.strip(),
+                sources=runtime_sources(),
+                project_root=app.state.project_root,
+                top_k=payload.top_k,
+                dataset_profile=dataset_profile,
+            )
+        except RagUnavailableError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except DatasetAnalysisError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/data/analyze")
+    def analyze_uploaded_dataset(payload: DatasetInput) -> dict[str, Any]:
+        ensure_ready()
+        try:
+            return analyze_dataset(
+                filename=payload.filename,
+                data_format=payload.format,
+                content=payload.content,
+            )
+        except DatasetAnalysisError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.get("/api/agent/candidate/{candidate_id}/review-notes")
     def agent_candidate_review_notes(candidate_id: str) -> dict[str, Any]:
         ensure_ready()
@@ -577,6 +647,7 @@ def create_app(
             action_plan=action_plan,
             ops=ops,
         )
+        recorded_chat = build_recorded_chat(sources, app.state.project_root)
         return HTMLResponse(
             render_dashboard(
                 state=state,
@@ -591,6 +662,7 @@ def create_app(
                 reviewer_evidence_bundles=evidence_bundles,
                 audit_integrity=audit_integrity,
                 agent_brief=agent_brief,
+                recorded_chat=recorded_chat,
             )
         )
 
