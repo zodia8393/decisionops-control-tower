@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml/badge.svg)](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/ci.yml)
 [![migration-rdb](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/migration-rdb.yml/badge.svg)](https://github.com/zodia8393/decisionops-control-tower/actions/workflows/migration-rdb.yml)
-[![demo](https://img.shields.io/badge/RECORDED_DEMO-legacy_snapshot-64748b)](https://zodia8393.github.io/decisionops-control-tower/)
+[![demo](https://img.shields.io/badge/RECORDED_DEMO-single_copilot_live-10b981)](https://zodia8393.github.io/decisionops-control-tower/)
 
 [RDB migration 실행](#실행-방법) · [브라우저 데모](https://zodia8393.github.io/decisionops-control-tower/) · [검증 결과](#핵심-수치) · [RDB 설계](docs/architecture_decision_rdb_migration.md) · [면접 가이드](docs/migration_interview_guide.md)
 
@@ -23,14 +23,14 @@
 기존 72개 schema·conversation 문항은 72/72를 유지합니다. Data Science golden set은 9개 dataset·22개 case에서 typed plan schema, 독립 pandas/SciPy/sklearn metric oracle, baseline/safety gate가 모두 22/22입니다. Migration은 20-row 사람이 읽을 수 있는 correctness fixture, 120k SQLite recovery rehearsal, 120k 실제 Firebird→PostgreSQL integration의 세 층으로 검증합니다. 사용자 평가는 현재 release 범위에서 제외했습니다.
 
 <p align="center">
-  <a href="https://zodia8393.github.io/decisionops-control-tower/"><strong>Recorded evidence-review demo</strong></a>
+  <a href="https://zodia8393.github.io/decisionops-control-tower/"><strong>Recorded Analysis Copilot demo</strong></a>
   &nbsp;·&nbsp;
   <a href="#실행-방법"><strong>Qdrant live demo 실행</strong></a>
 </p>
 
 ![Legacy Hospital Migration reconciliation과 reject lineage](docs/assets/demo/legacy_hospital_migration.png)
 
-현재 공개 Pages는 2026-07-20의 legacy evidence-review snapshot입니다. secret과 write API는 없지만 새 Analysis Copilot·migration 화면보다 이전 release이므로 `STALE`로 표시합니다. current source의 recorded snapshot build는 통과했으며 다음 승인된 Pages 배포에서 교체됩니다. 임의 파일 업로드, free-form 분석, 실제 Qdrant 검색은 배포 후에도 아래 local/Compose demo에서만 동작합니다.
+현재 공개 Pages는 2026-07-22 18:06 KST에 release commit `f5ce604`로 배포한 최신 single Copilot recorded snapshot입니다. HTTP 200과 read-only public smoke를 통과했으며 Analysis Copilot·Migration Lab·검증 결과·기술 상세 화면을 바로 확인할 수 있습니다. secret과 write API는 포함하지 않습니다. 임의 파일 업로드, free-form 분석, 실제 Qdrant 검색은 아래 local/Compose demo에서만 동작합니다.
 
 ## 무엇을 만들었나
 
@@ -178,9 +178,9 @@ date 기준 value 향후 14일 예측
 
 ## 운영 데이터 snapshot
 
-2026-07-22 09:03 KST Pages-equivalent 재생성 결과의 source 관측 시각은 **2026-07-22 08:25 KST**입니다. 서울 snapshot 462개, impact card 12건(model-validated estimate 742단위), reviewer action plan 8건(529단위), evidence freshness **8/8**로 해당 실행의 data/claim gate는 `GO`입니다. 이 판단은 3시간 freshness SLA에 따라 다시 만료될 수 있으며, 현장 dispatch/outcome이 없어 realized field impact는 계속 `미관측`입니다.
+2026-07-22 18:06 KST에 배포한 recorded snapshot의 운영 source 관측 시각은 **2026-07-20 12:25 KST**입니다. 화면과 migration 증거는 최신 release이지만 reviewer evidence freshness는 **0/8**이므로 운영 data/claim gate는 `NO_GO`로 fail-closed합니다. 현장 dispatch/outcome도 없어 realized field impact는 계속 `미관측`입니다.
 
-정적 read-only UI를 안전하게 생성할 수 있다는 사실, 실행 시점 data/claim gate, 실제 Pages 배포 여부는 서로 다른 상태입니다. Fresh source artifact는 UI build/smoke와 data gate를 통과했지만, 외부 Pages는 여전히 2026-07-20 legacy 화면이라 `STALE`입니다. Hosted write API도 credential 미설정으로 별도 `NO_GO`입니다.
+정적 read-only UI를 안전하게 생성·배포했다는 사실과 snapshot 내부 운영 data/claim gate는 서로 다른 상태입니다. 현재 Pages artifact는 최신 UI build/smoke를 통과한 `LIVE / READ-ONLY` 상태지만, 기록된 운영 근거는 freshness SLA를 넘어 `NO_GO`입니다. Hosted write API도 credential 미설정으로 별도 `NO_GO`입니다.
 
 로컬의 최신 검증 aggregate를 path·secret 없이 [public fixture](tests/fixtures/public_demo_inputs.json)로 갱신하려면 다음 명령을 실행합니다. source가 `NO_GO`이거나 3시간 freshness SLA를 넘으면 script가 갱신을 거부합니다.
 
@@ -188,7 +188,7 @@ date 기준 value 향후 14일 예측
 PYTHONPATH=src python3 scripts/refresh_public_demo_inputs.py
 ```
 
-> **Release boundary** — Current source local/Compose `GO` · 2026-07-22 09:03 KST recorded artifact `BUILD PASS / DATA GO` · deployed Pages `STALE legacy snapshot` · Hosted write API `NO_GO`
+> **Release boundary** — Local/Compose product demo `GO` · deployed Pages `LIVE / READ-ONLY` at commit `f5ce604` · recorded operational evidence `STALE / DATA NO_GO` · Hosted write API `NO_GO`
 
 ## 얻은 인사이트
 
@@ -240,13 +240,13 @@ Reviewer ranking도 단일 입력값에 고정하면 취약합니다. 4개 stres
 | Local single Copilot demo | `GO` | upload→analysis→migration→validation walkthrough 가능 |
 | Container demo | `GO` | Docker/Compose smoke 통과 |
 | Firebird→PostgreSQL integration | `GO` | actual RDB 120k·rollback·resume·replay·drift·FK gate 통과 |
-| Deployed public Pages | `STALE` | 2026-07-20 legacy recorded snapshot; current Copilot 화면 미반영 |
-| Next Pages artifact | `BUILD PASS / READ-ONLY` | 2026-07-22 09:03 KST single Copilot snapshot 생성·smoke 통과; 당시 data gate `GO` |
+| Deployed public Pages | `LIVE / READ-ONLY` | 2026-07-22 18:06 KST, commit `f5ce604`; HTTP 200·13 required/7 forbidden marker smoke PASS |
+| Recorded operational evidence | `STALE / DATA NO_GO` | source 2026-07-20 12:25 KST, reviewer evidence freshness 0/8; UI 배포 성공과 운영 근거 최신성을 분리 |
 | User evaluation | `현재 범위에서 생략` | automated release gate에 포함하지 않음 |
 | Hospital production cutover / SLA | `미검증` | synthetic container integration을 실무 운영 경험으로 표현하지 않음 |
 | Compatibility approval API | `NO_GO hosted` | 기존 API는 보존했지만 credential/target hardening 전 외부 write 금지 |
 
-**다음 gate:** clean release audit 뒤 승인된 GitHub push/Pages 배포로 현재 single Copilot snapshot을 교체해야 합니다. 외부 publication은 사용자 승인 전 수행하지 않습니다. 기존 hosted approval API를 외부에 열려면 별도로 role credential과 deployment hardening이 필요합니다.
+**다음 gate:** draft PR #11 review 후 `main` 병합 여부를 결정합니다. 운영 데이터까지 최신이라고 주장하려면 public fixture를 새 source로 갱신해 freshness gate를 다시 통과해야 합니다. 기존 hosted approval API를 외부에 열려면 별도로 role credential과 deployment hardening이 필요합니다.
 
 ## 산출물 확인 방법
 

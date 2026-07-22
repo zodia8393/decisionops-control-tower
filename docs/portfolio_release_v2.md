@@ -1,9 +1,9 @@
 # Portfolio Release v2
 
-- 상태: **LOCAL RELEASE CANDIDATE PASS**
+- 상태: **DEPLOYED RELEASE CANDIDATE · DRAFT PR**
 - 기준일: 2026-07-22 KST
 - 대상: 신입~1년차 Data Migration / Data Engineer
-- publication: **PENDING USER APPROVAL**
+- publication: **PAGES LIVE · PR #11 OPEN**
 
 ## Recruiter Summary
 
@@ -74,12 +74,13 @@ python3 scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 
 사용자 평가는 이번 release 범위와 pass/fail gate에서 생략했다.
 
-## Publication Gate
+## Publication Result
 
-현재 프로젝트 worktree에는 이 release 이전부터 이어진 대규모 uncommitted 변경이 함께 있다. 사용자 변경을 임의로 하나의 commit에 묶지 않기 위해 local commit, GitHub push, Pages 배포는 수행하지 않았다. 외부 제출 전에는 scope를 확인해 release commit을 만든 뒤 다음 순서로 진행한다.
+- release branch: `agent/portfolio-release-v2`
+- release commit: `f5ce604bf1fec68f0ce0feeff02a9d40f598647d`
+- draft PR: [#11](https://github.com/zodia8393/decisionops-control-tower/pull/11)
+- CI: `ci`, `private-demo-smoke`, `migration-rdb` 모두 PASS
+- Pages: [LIVE / READ-ONLY](https://zodia8393.github.io/decisionops-control-tower/)
+- deployed smoke: HTTP 200, required marker 13개, forbidden marker 7개 계약 PASS
 
-1. intended file set과 secret/large-file audit 확인
-2. local release commit 생성
-3. GitHub push 및 `migration-rdb` CI 확인
-4. 최신 recorded Pages artifact 배포
-5. README의 `STALE` 표기를 실제 배포 상태로 갱신
+Pages의 최신 product UI 배포와 snapshot 내부 운영 근거의 최신성은 별도 상태다. 배포된 recorded source는 freshness SLA를 넘어 운영 data/claim gate가 `NO_GO`이며, 이 fail-closed 상태를 UI와 README에 그대로 공개한다. `main` 병합은 draft PR review 이후 별도 결정한다.

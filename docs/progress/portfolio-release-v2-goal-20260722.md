@@ -1,8 +1,8 @@
 # Portfolio Release v2 Goal
 
 - 시작: 2026-07-22 KST
-- 상태: local release candidate 완료 · publication 승인 대기
-- 외부 배포: 사용자 승인 전 보류
+- 상태: release candidate 완료 · draft PR/Pages publication 완료
+- 외부 배포: 2026-07-22 18:06 KST · read-only Pages LIVE
 
 ## Objective
 
@@ -25,14 +25,14 @@ Decision Intelligence Copilot을 신입~1년차 데이터 마이그레이션·Da
 | Firebird→PostgreSQL integration | 완료 | 120,000 = 119,988 + 12; rollback/resume/replay/drift/FK PASS |
 | migration-first hiring package | 완료 | README, demo package, interview guide, release manifest |
 | release verification | 완료 | 204 tests, run_all, RDB integration, browser, clean archive PASS |
-| publication | 승인 대기 | local release manifest; push/Pages 미실행 |
+| publication | 완료 | branch `agent/portfolio-release-v2`, draft PR #11, Pages read-only smoke PASS |
 
 ## Guardrails
 
 - 실제 환자 데이터와 외부 DB credential을 사용하지 않는다.
 - standard web demo runtime과 migration integration dependency를 분리한다.
 - 사용자 평가는 이번 goal의 acceptance gate에 포함하지 않는다.
-- external GitHub push와 Pages 배포는 별도 승인 전 수행하지 않는다.
+- external GitHub push와 Pages 배포는 2026-07-22 사용자 승인 후 수행했다.
 
 ## Completion Evidence
 
@@ -43,4 +43,5 @@ Decision Intelligence Copilot을 신입~1년차 데이터 마이그레이션·Da
 - automated suite: 204 pytest, Analysis 72/72, Data Science 22/22, RAG 36/36
 - browser: 14 captures, desktop/mobile overflow false, console/page errors 0
 - clean archive: runtime/cache/secret 제외 별도 directory에서 204 pytest 재통과
-- publication: 기존 dirty worktree의 사용자 변경 보호와 승인 gate 때문에 미실행
+- publication: commit `f5ce604`, PR checks 3/3 PASS, Pages HTTP 200/read-only smoke PASS
+- policy restore: 배포에 사용한 임시 exact-branch 허용을 제거하고 `github-pages` 환경을 `main`-only로 복구
