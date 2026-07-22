@@ -13,7 +13,8 @@ from urllib import error, request
 AGENT_NAME = "Evidence-Gated Reviewer Agent"
 CLAIM_SAFETY_RULE = (
     "Agent는 reviewer evidence를 요약할 수 있지만, GO/NO_GO와 public claim safety의 "
-    "source of truth는 deterministic policy gate입니다."
+    "source of truth는 deterministic policy gate입니다. Public GO는 model-validated estimate "
+    "범위만 허용하며 field-realized impact를 뜻하지 않습니다."
 )
 
 REVIEWER_BRIEF_SCHEMA: dict[str, Any] = {
@@ -82,11 +83,29 @@ def build_claim_safety(state: dict[str, Any]) -> dict[str, Any]:
     public_deploy_decision = str(state.get("public_deploy_decision", "UNKNOWN"))
     blocked_units = int(metrics.get("impact_public_claim_blocked_units", 0) or 0)
     unsupported_avoided = int(metrics.get("impact_unsupported_claim_units_avoided", 0) or 0)
+    model_estimate_units = int(
+        metrics.get("impact_model_validated_estimate_units", 0) or 0
+    )
+    realized_units = int(metrics.get("impact_realized_units", 0) or 0)
+    realized_claim_blocked_units = int(
+        metrics.get("impact_realized_claim_blocked_units", 0) or 0
+    )
     return {
         "public_deploy_decision": public_deploy_decision,
         "allowed_public_claim": public_deploy_decision == "GO" and blocked_units == 0,
+        "allowed_public_claim_scope": (
+            "validated_model_estimate_only"
+            if public_deploy_decision == "GO" and blocked_units == 0
+            else "local_review_only"
+        ),
         "blocked_public_claim_units": blocked_units,
         "unsupported_claim_units_avoided": unsupported_avoided,
+        "model_validated_estimate_units": model_estimate_units,
+        "realized_impact_units": realized_units,
+        "realized_impact_claim_allowed": (
+            realized_units > 0 and realized_claim_blocked_units == 0
+        ),
+        "realized_impact_claim_blocked_units": realized_claim_blocked_units,
         "rule": CLAIM_SAFETY_RULE,
     }
 
@@ -114,6 +133,16 @@ def build_evidence_refs(
             "source": "/api/control-state",
             "field": "metrics.impact_public_claim_blocked_units",
             "value": metrics.get("impact_public_claim_blocked_units", 0),
+        },
+        {
+            "source": "/api/control-state",
+            "field": "metrics.impact_model_validated_estimate_units",
+            "value": metrics.get("impact_model_validated_estimate_units", 0),
+        },
+        {
+            "source": "/api/control-state",
+            "field": "metrics.impact_realized_claim_blocked_units",
+            "value": metrics.get("impact_realized_claim_blocked_units", 0),
         },
         {"source": "/api/review-queue", "field": "count", "value": len(queue)},
         {"source": "/api/impact-cards", "field": "count", "value": len(impact_cards)},

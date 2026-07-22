@@ -1,0 +1,43 @@
+{
+  "version": "1.0.0",
+  "datasets": {
+    "advanced": {
+      "kind": "csv",
+      "filename": "advanced.csv",
+      "content": "date,group,x,y\n2026-01-01,A,1,2\n2026-01-02,A,2,4\n2026-01-03,A,3,6\n2026-01-04,A,4,7\n2026-01-05,A,5,10\n2026-01-06,A,6,12\n2026-01-07,B,7,15\n2026-01-08,B,8,16\n2026-01-09,B,9,19\n2026-01-10,B,10,20\n2026-01-11,B,11,23\n2026-01-12,B,100,25\n"
+    },
+    "regression_signal": {"kind": "regression_signal", "rows": 180, "seed": 42},
+    "classification_signal": {"kind": "classification_signal", "rows": 180, "seed": 7},
+    "forecast_signal": {"kind": "forecast_signal", "rows": 140, "seed": 42},
+    "random_target": {"kind": "random_target", "rows": 180, "seed": 11},
+    "small": {"kind": "small", "rows": 50, "seed": 42},
+    "constant": {"kind": "constant", "rows": 120, "seed": 42},
+    "leak": {"kind": "leak", "rows": 120, "seed": 42},
+    "imbalanced": {"kind": "imbalanced", "rows": 120, "seed": 42}
+  },
+  "cases": [
+    {"id": "adv_distribution", "dataset_id": "advanced", "question": "x 히스토그램으로 분포 분석", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "distribution", "columns": ["x"], "bins": 10}},
+    {"id": "adv_distribution_bins", "dataset_id": "advanced", "question": "x 분포 분석, 구간을 20", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "distribution", "columns": ["x"], "bins": 20}},
+    {"id": "adv_outliers", "dataset_id": "advanced", "question": "x IQR 이상치 찾아줘", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "outliers", "columns": ["x"]}},
+    {"id": "adv_relationship", "dataset_id": "advanced", "question": "x와 y Spearman 관계", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "relationship", "columns": ["x", "y"]}},
+    {"id": "adv_group_auto", "dataset_id": "advanced", "question": "group별 y 차이 검정", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "group_comparison", "columns": ["y"], "group_by": "group", "test_method": "auto"}},
+    {"id": "adv_group_parametric", "dataset_id": "advanced", "question": "group별 y t-test 차이 검정", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "group_comparison", "columns": ["y"], "group_by": "group", "test_method": "parametric"}},
+    {"id": "adv_time_rolling", "dataset_id": "advanced", "question": "date 기준 y 이동평균 4", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "time_series", "columns": ["y"], "time_column": "date", "rolling_window": 4}},
+    {"id": "adv_time_weekly", "dataset_id": "forecast_signal", "question": "date 기준 value 주별로 재집계하고 시계열 탐색", "expected_status": "planned", "expected_mode": "advanced", "expected_plan": {"operation": "time_series", "columns": ["value"], "time_column": "date", "frequency": "weekly"}},
+    {"id": "adv_clarify_column", "dataset_id": "advanced", "question": "히스토그램 보여줘", "expected_status": "clarification", "expected_mode": "advanced"},
+    {"id": "adv_basic_not_applicable", "dataset_id": "advanced", "question": "group별 y 평균", "expected_status": "not_applicable"},
+
+    {"id": "pred_regression", "dataset_id": "regression_signal", "question": "y 회귀 모델로 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_plan": {"task": "regression", "target": "y"}, "expected_result_status": "MODEL_READY"},
+    {"id": "pred_classification", "dataset_id": "classification_signal", "question": "label 분류 모델", "expected_status": "planned", "expected_mode": "prediction", "expected_plan": {"task": "classification", "target": "label"}, "expected_result_status": "MODEL_READY"},
+    {"id": "pred_forecast_5", "dataset_id": "forecast_signal", "question": "date 기준 value 향후 5일 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_plan": {"task": "forecasting", "target": "value", "time_column": "date", "horizon": 5}, "expected_result_status": "MODEL_READY"},
+    {"id": "pred_forecast_14", "dataset_id": "forecast_signal", "question": "date 기준 value 다음 14일 forecast", "expected_status": "planned", "expected_mode": "prediction", "expected_plan": {"task": "forecasting", "target": "value", "time_column": "date", "horizon": 14}, "expected_result_status": "MODEL_READY"},
+    {"id": "pred_followup_horizon", "dataset_id": "forecast_signal", "question": "14일로 바꿔줘", "expected_status": "planned", "expected_mode": "prediction", "previous_prediction_plan": {"task": "forecasting", "target": "value", "time_column": "date", "split_strategy": "chronological", "horizon": 5, "rationale": "previous forecast plan"}, "expected_plan": {"task": "forecasting", "target": "value", "horizon": 14}, "expected_result_status": "MODEL_READY"},
+    {"id": "pred_clarify_target", "dataset_id": "advanced", "question": "예측 모델 만들어줘", "expected_status": "clarification", "expected_mode": "prediction"},
+    {"id": "gate_small_sample", "dataset_id": "small", "question": "y 회귀 모델로 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_error": "at least 100"},
+    {"id": "gate_constant_target", "dataset_id": "constant", "question": "y 회귀 모델로 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_error": "constant"},
+    {"id": "gate_direct_leakage", "dataset_id": "leak", "question": "leaked와 x로 y 회귀 모델 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_error": "target leakage"},
+    {"id": "gate_class_imbalance", "dataset_id": "imbalanced", "question": "label 분류 모델", "expected_status": "planned", "expected_mode": "prediction", "expected_error": "per class"},
+    {"id": "gate_no_model_gain", "dataset_id": "random_target", "question": "y 회귀 모델로 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_plan": {"task": "regression", "target": "y"}, "expected_result_status": "NO_MODEL_GAIN"},
+    {"id": "gate_unique_id_excluded", "dataset_id": "regression_signal", "question": "row_id와 x로 y 회귀 모델 예측", "expected_status": "planned", "expected_mode": "prediction", "expected_plan": {"task": "regression", "target": "y", "features": ["row_id", "x"]}, "expected_result_status": "MODEL_READY", "expected_excluded_feature": "row_id"}
+  ]
+}

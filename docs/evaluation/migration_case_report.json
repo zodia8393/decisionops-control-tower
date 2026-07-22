@@ -1,0 +1,365 @@
+{
+  "contract_version": "decisionops-migration-report-v1",
+  "case_id": "legacy-hospital-emr-v1",
+  "title": "Two legacy hospital extracts to canonical EMR",
+  "generated_at_utc": "2026-07-21T03:09:58.152970Z",
+  "status": "pass",
+  "outcome": "completed_with_rejects",
+  "source_fingerprint_sha256": "b39ead2bf0198c29ca3cbaa6f3c851de6f3f321cbe71329de767b1fdfb8ccf9b",
+  "mapping_fingerprint_sha256": "3ff699c5a1a938ac0a0bc92f7d2ed364c75b2369a6dbccb2cd96dc74e4069c95",
+  "result_fingerprint_sha256": "b9bba63aafc249c75a662823ea4a893c31371175106c611d54cfbe860dfacc8a",
+  "idempotency_key": "3411c90d25af83d21d80eea46a599a27f1f94e656bb8d6c8acb275b883bd8387",
+  "metrics": {
+    "source_systems": 2,
+    "source_tables": 6,
+    "source_rows": 20,
+    "accepted_rows": 11,
+    "rejected_rows": 9,
+    "target_tables": 3
+  },
+  "reason_counts": {
+    "duplicate_primary_key": 1,
+    "foreign_key_missing": 6,
+    "required_field_missing": 1,
+    "transform_error": 1
+  },
+  "target_checksums": {
+    "guardian": "42224a65ad6d82a571852dffc2ecde30552e7c162eece6710bbd4993c709a197",
+    "patient": "a89b8c8e8bd1184b8fe14c4d4dbbf61ce5111e652cf943043990a194b82e80f9",
+    "encounter": "daf93701a4f75dc0dee43fc95511f95322f8b5f1c91c4e64076b99fa342d9934"
+  },
+  "reconciliation": [
+    {
+      "source_system": "legacy_a",
+      "source_table": "owners",
+      "target_table": "guardian",
+      "source_rows": 3,
+      "accepted_rows": 2,
+      "rejected_rows": 1,
+      "accounted_rows": 3,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "customers",
+      "target_table": "guardian",
+      "source_rows": 2,
+      "accepted_rows": 2,
+      "rejected_rows": 0,
+      "accounted_rows": 2,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "animals",
+      "target_table": "patient",
+      "source_rows": 4,
+      "accepted_rows": 2,
+      "rejected_rows": 2,
+      "accounted_rows": 4,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "pet_master",
+      "target_table": "patient",
+      "source_rows": 3,
+      "accepted_rows": 2,
+      "rejected_rows": 1,
+      "accounted_rows": 3,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "charts",
+      "target_table": "encounter",
+      "source_rows": 4,
+      "accepted_rows": 1,
+      "rejected_rows": 3,
+      "accounted_rows": 4,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "visits",
+      "target_table": "encounter",
+      "source_rows": 4,
+      "accepted_rows": 2,
+      "rejected_rows": 2,
+      "accounted_rows": 4,
+      "status": "pass"
+    }
+  ],
+  "accepted_targets": {
+    "guardian": [
+      {
+        "guardian_id": "A-001",
+        "full_name": "Kim",
+        "phone": "010-1234-5678",
+        "source_system": "legacy_a"
+      },
+      {
+        "guardian_id": "A-002",
+        "full_name": "Lee",
+        "phone": "010-9999-0000",
+        "source_system": "legacy_a"
+      },
+      {
+        "guardian_id": "B-C10",
+        "full_name": "Park",
+        "phone": "010-2222-3333",
+        "source_system": "legacy_b"
+      },
+      {
+        "guardian_id": "B-C11",
+        "full_name": "Choi",
+        "phone": null,
+        "source_system": "legacy_b"
+      }
+    ],
+    "patient": [
+      {
+        "patient_id": "A-A01",
+        "guardian_id": "A-001",
+        "patient_name": "Momo",
+        "species": "canine",
+        "birth_date": "2020-01-02",
+        "source_system": "legacy_a"
+      },
+      {
+        "patient_id": "A-A02",
+        "guardian_id": "A-002",
+        "patient_name": "Nabi",
+        "species": "feline",
+        "birth_date": "2019-05-03",
+        "source_system": "legacy_a"
+      },
+      {
+        "patient_id": "B-P10",
+        "guardian_id": "B-C10",
+        "patient_name": "Coco",
+        "species": "canine",
+        "birth_date": "2022-02-01",
+        "source_system": "legacy_b"
+      },
+      {
+        "patient_id": "B-P11",
+        "guardian_id": "B-C11",
+        "patient_name": "Bori",
+        "species": "feline",
+        "birth_date": "2018-11-11",
+        "source_system": "legacy_b"
+      }
+    ],
+    "encounter": [
+      {
+        "encounter_id": "A-V01",
+        "patient_id": "A-A01",
+        "encounter_date": "2026-07-01",
+        "total_amount": "55000.00",
+        "source_system": "legacy_a"
+      },
+      {
+        "encounter_id": "B-E10",
+        "patient_id": "B-P10",
+        "encounter_date": "2026-07-04",
+        "total_amount": "80000.00",
+        "source_system": "legacy_b"
+      },
+      {
+        "encounter_id": "B-E11",
+        "patient_id": "B-P11",
+        "encounter_date": "2026-07-05",
+        "total_amount": "40000.00",
+        "source_system": "legacy_b"
+      }
+    ]
+  },
+  "lineage": [
+    {
+      "source_system": "legacy_a",
+      "source_table": "owners",
+      "source_row_number": 1,
+      "source_row_hash": "3bd981014cb44494e380f7a9133e889e0630b9e0555298f5a159d295b55ac8ba",
+      "target_table": "guardian",
+      "target_primary_key": "A-001"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "owners",
+      "source_row_number": 2,
+      "source_row_hash": "7154de671a35455daf414c202d8ba6537c5f5feb265942345e98a19686aa6811",
+      "target_table": "guardian",
+      "target_primary_key": "A-002"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "customers",
+      "source_row_number": 1,
+      "source_row_hash": "c7cd07fe140152bf8f208cb35851858b63918f23a8c604bba53433941ebd504b",
+      "target_table": "guardian",
+      "target_primary_key": "B-C10"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "customers",
+      "source_row_number": 2,
+      "source_row_hash": "d1001d1c714c4e70cd195a961566ad7c2ff7a2fb4f505528615d02ac8a1e7a9f",
+      "target_table": "guardian",
+      "target_primary_key": "B-C11"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "animals",
+      "source_row_number": 1,
+      "source_row_hash": "6c23b8682a9135493fd2e940de8ef975d1f703a72b3545665666fec160473191",
+      "target_table": "patient",
+      "target_primary_key": "A-A01"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "animals",
+      "source_row_number": 2,
+      "source_row_hash": "0e0bfbe017a7b562fc662fe317b9ff581b423544ddce67d81b1915946a15181d",
+      "target_table": "patient",
+      "target_primary_key": "A-A02"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "pet_master",
+      "source_row_number": 1,
+      "source_row_hash": "40866fec18194ea0b5020098695669619ca3b5871c4e69c2dd95c68094501b17",
+      "target_table": "patient",
+      "target_primary_key": "B-P10"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "pet_master",
+      "source_row_number": 2,
+      "source_row_hash": "a8065eff56b108c845eb86b1cf2ff7f216ce62cc5fa12b7216eff2eb91d2915b",
+      "target_table": "patient",
+      "target_primary_key": "B-P11"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "charts",
+      "source_row_number": 1,
+      "source_row_hash": "edc900b651115b8003cf8490c3dae562f613808e3148cd6846b0b6202d8a0b8e",
+      "target_table": "encounter",
+      "target_primary_key": "A-V01"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "visits",
+      "source_row_number": 1,
+      "source_row_hash": "78ab570e6feeee170cb1010ce27fe032d02d9d981a64ea91abd9e2d008ad742b",
+      "target_table": "encounter",
+      "target_primary_key": "B-E10"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "visits",
+      "source_row_number": 2,
+      "source_row_hash": "ffb1b21f1d91204d13b7586525089ad386ee72fc144dfeed61cc321b9ccff9bf",
+      "target_table": "encounter",
+      "target_primary_key": "B-E11"
+    }
+  ],
+  "rejects": [
+    {
+      "source_system": "legacy_a",
+      "source_engine": "MS-SQL-style synthetic extract",
+      "source_table": "owners",
+      "source_row_number": 3,
+      "source_row_hash": "0d4bff711c15f9e8cb66d485e17a1907ac9dce55ef9c7478778dfa5c1da8ab11",
+      "target_table": "guardian",
+      "reason_code": "required_field_missing",
+      "detail": "missing required fields: full_name"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_engine": "MS-SQL-style synthetic extract",
+      "source_table": "animals",
+      "source_row_number": 3,
+      "source_row_hash": "76be7bfde3c8614c778906b18b87d41cf631679418fe3c6a26b1e8ad3bb03b51",
+      "target_table": "patient",
+      "reason_code": "foreign_key_missing",
+      "detail": "guardian_id has no accepted guardian parent"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_engine": "MS-SQL-style synthetic extract",
+      "source_table": "animals",
+      "source_row_number": 4,
+      "source_row_hash": "536e4c518dfe8f4828b2c0e4b9a61b676e2c119a4c9d151987c613ef1bc458e4",
+      "target_table": "patient",
+      "reason_code": "foreign_key_missing",
+      "detail": "guardian_id has no accepted guardian parent"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_engine": "Firebird-style synthetic extract",
+      "source_table": "pet_master",
+      "source_row_number": 3,
+      "source_row_hash": "7362284ff57dbd0ea2c6164e140bf879fe1b113b2778da807d36a8c72db13ebe",
+      "target_table": "patient",
+      "reason_code": "foreign_key_missing",
+      "detail": "guardian_id has no accepted guardian parent"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_engine": "MS-SQL-style synthetic extract",
+      "source_table": "charts",
+      "source_row_number": 2,
+      "source_row_hash": "66dbc60aaeb10702f4bfd8d3621c7bc88fd9d251c34cb31ebf609eb42f686c33",
+      "target_table": "encounter",
+      "reason_code": "transform_error",
+      "detail": "encounter_date: value is not an ISO date"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_engine": "MS-SQL-style synthetic extract",
+      "source_table": "charts",
+      "source_row_number": 3,
+      "source_row_hash": "528a79f428d38b3a80a141d689bd391bfe2ef817dee57c5423f5befdd3645f8a",
+      "target_table": "encounter",
+      "reason_code": "foreign_key_missing",
+      "detail": "patient_id has no accepted patient parent"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_engine": "MS-SQL-style synthetic extract",
+      "source_table": "charts",
+      "source_row_number": 4,
+      "source_row_hash": "bfad21c3a3f0a79692b97938152c99ef05a45d4878aa4a2ed0927ef84fc6c8a6",
+      "target_table": "encounter",
+      "reason_code": "foreign_key_missing",
+      "detail": "patient_id has no accepted patient parent"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_engine": "Firebird-style synthetic extract",
+      "source_table": "visits",
+      "source_row_number": 3,
+      "source_row_hash": "08d03277c706e4a0ed74cfe2b7b92319bab10cd5d5a6bd8c78695f0cbfe90901",
+      "target_table": "encounter",
+      "reason_code": "duplicate_primary_key",
+      "detail": "duplicate primary key: B-E10"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_engine": "Firebird-style synthetic extract",
+      "source_table": "visits",
+      "source_row_number": 4,
+      "source_row_hash": "ecd04fcfe50e6f76ecb0782b93f5e8d1bd93b80112433bea53e1c82d23a661d9",
+      "target_table": "encounter",
+      "reason_code": "foreign_key_missing",
+      "detail": "patient_id has no accepted patient parent"
+    }
+  ],
+  "limitations": [
+    "Synthetic versioned extracts; no real patient or guardian data.",
+    "Demonstrates mapping correctness and reconciliation, not live MS-SQL/Firebird connectivity.",
+    "Correctness-scale fixture; no production throughput or transaction benchmark claim."
+  ]
+}

@@ -1,0 +1,482 @@
+{
+  "version": "1.1",
+  "description": "Seventy-two versioned template, paraphrase, and multi-turn tasks for bounded natural-language tabular analysis.",
+  "datasets": {
+    "retail": {
+      "filename": "retail_holdout.csv",
+      "format": "csv",
+      "content": "region,channel,revenue,orders\nSeoul,web,100,2\nSeoul,store,80,1\nBusan,web,60,3\nBusan,store,40,2\nJeju,web,120,4\nSeoul,store,50,2\n"
+    },
+    "inventory": {
+      "filename": "inventory_holdout.csv",
+      "format": "csv",
+      "content": "warehouse,sku,stock,reorder_days\nA,P1,10,3\nA,P2,0,1\nA,P3,4,2\nB,P1,8,4\nB,P4,2,2\nC,P5,14,5\n"
+    },
+    "support_ko": {
+      "filename": "support_holdout.csv",
+      "format": "csv",
+      "content": "팀,우선순위,처리시간,만족도\nalpha,긴급,4,5\nalpha,일반,8,4\nbeta,긴급,3,5\nbeta,일반,10,3\nbeta,긴급,5,4\ngamma,일반,6,4\n"
+    },
+    "traffic": {
+      "filename": "traffic_holdout.csv",
+      "format": "csv",
+      "content": "corridor,vehicle_type,volume,speed_kph\nA,car,100,45\nA,bus,30,35\nA,bike,10,25\nB,car,120,50\nB,truck,40,30\nC,car,80,55\nC,bus,20,40\n"
+    },
+    "services": {
+      "filename": "services_challenge.csv",
+      "format": "csv",
+      "content": "event_date,service_line,net_sales,wait_minutes,customer_score\n2026-06-01,dental,120,8,5\n2026-06-02,wellness,80,15,\n2026-06-03,dental,60,4,4\n2026-06-04,surgery,300,40,3\n2026-06-05,wellness,100,10,5\n2026-06-06,dental,140,12,4\n"
+    }
+  },
+  "cases": [
+    {
+      "id": "retail-01",
+      "dataset_id": "retail",
+      "question": "region별 revenue 합계 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "sum", "column": "revenue", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "retail-02",
+      "dataset_id": "retail",
+      "question": "channel별 orders 평균",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["channel"], "metrics": [{"operation": "mean", "column": "orders", "alias": "mean_value"}]}
+    },
+    {
+      "id": "retail-03",
+      "dataset_id": "retail",
+      "question": "revenue 80 이상인 행을 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "revenue", "operator": "gte", "value": 80}]}
+    },
+    {
+      "id": "retail-04",
+      "dataset_id": "retail",
+      "question": "channel가 web인 revenue 합계",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "channel", "operator": "eq", "value": "web"}], "metrics": [{"operation": "sum", "column": "revenue", "alias": "sum_value"}]}
+    },
+    {
+      "id": "retail-05",
+      "dataset_id": "retail",
+      "question": "revenue 상위 2개 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "revenue", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "retail-06",
+      "dataset_id": "retail",
+      "question": "orders 최대",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "max", "column": "orders", "alias": "max_value"}]}
+    },
+    {
+      "id": "retail-07",
+      "dataset_id": "retail",
+      "question": "revenue 최소",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "min", "column": "revenue", "alias": "min_value"}]}
+    },
+    {
+      "id": "retail-08",
+      "dataset_id": "retail",
+      "question": "region별 건수 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "count", "alias": "row_count"}], "order_by": [{"column": "row_count", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "retail-09",
+      "dataset_id": "retail",
+      "question": "channel 고유 개수",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "count_distinct", "column": "channel", "alias": "count_distinct_value"}]}
+    },
+    {"id": "retail-10", "dataset_id": "retail", "question": "평균을 보여줘", "expected_status": "clarification"},
+
+    {
+      "id": "inventory-01",
+      "dataset_id": "inventory",
+      "question": "warehouse별 stock 합계 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["warehouse"], "metrics": [{"operation": "sum", "column": "stock", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "inventory-02",
+      "dataset_id": "inventory",
+      "question": "warehouse별 reorder_days 평균",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["warehouse"], "metrics": [{"operation": "mean", "column": "reorder_days", "alias": "mean_value"}]}
+    },
+    {
+      "id": "inventory-03",
+      "dataset_id": "inventory",
+      "question": "stock 4 미만인 행을 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "stock", "operator": "lt", "value": 4}]}
+    },
+    {
+      "id": "inventory-04",
+      "dataset_id": "inventory",
+      "question": "warehouse가 A인 stock 합계",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "warehouse", "operator": "eq", "value": "A"}], "metrics": [{"operation": "sum", "column": "stock", "alias": "sum_value"}]}
+    },
+    {
+      "id": "inventory-05",
+      "dataset_id": "inventory",
+      "question": "stock 상위 3개 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "stock", "direction": "desc"}], "limit": 3}
+    },
+    {
+      "id": "inventory-06",
+      "dataset_id": "inventory",
+      "question": "reorder_days 최대",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "max", "column": "reorder_days", "alias": "max_value"}]}
+    },
+    {
+      "id": "inventory-07",
+      "dataset_id": "inventory",
+      "question": "stock 최소",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "min", "column": "stock", "alias": "min_value"}]}
+    },
+    {
+      "id": "inventory-08",
+      "dataset_id": "inventory",
+      "question": "warehouse별 건수 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["warehouse"], "metrics": [{"operation": "count", "alias": "row_count"}], "order_by": [{"column": "row_count", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "inventory-09",
+      "dataset_id": "inventory",
+      "question": "sku distinct count",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "count_distinct", "column": "sku", "alias": "count_distinct_value"}]}
+    },
+    {"id": "inventory-10", "dataset_id": "inventory", "question": "average를 보여줘", "expected_status": "clarification"},
+
+    {
+      "id": "support-01",
+      "dataset_id": "support_ko",
+      "question": "팀별 처리시간 합계 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["팀"], "metrics": [{"operation": "sum", "column": "처리시간", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "support-02",
+      "dataset_id": "support_ko",
+      "question": "우선순위별 만족도 평균",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["우선순위"], "metrics": [{"operation": "mean", "column": "만족도", "alias": "mean_value"}]}
+    },
+    {
+      "id": "support-03",
+      "dataset_id": "support_ko",
+      "question": "처리시간 5 이하인 행을 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "처리시간", "operator": "lte", "value": 5}]}
+    },
+    {
+      "id": "support-04",
+      "dataset_id": "support_ko",
+      "question": "우선순위가 긴급인 처리시간 평균",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "우선순위", "operator": "eq", "value": "긴급"}], "metrics": [{"operation": "mean", "column": "처리시간", "alias": "mean_value"}]}
+    },
+    {
+      "id": "support-05",
+      "dataset_id": "support_ko",
+      "question": "처리시간 상위 2개 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "처리시간", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "support-06",
+      "dataset_id": "support_ko",
+      "question": "만족도 최대",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "max", "column": "만족도", "alias": "max_value"}]}
+    },
+    {
+      "id": "support-07",
+      "dataset_id": "support_ko",
+      "question": "처리시간 최소",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "min", "column": "처리시간", "alias": "min_value"}]}
+    },
+    {
+      "id": "support-08",
+      "dataset_id": "support_ko",
+      "question": "팀별 건수 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["팀"], "metrics": [{"operation": "count", "alias": "row_count"}], "order_by": [{"column": "row_count", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "support-09",
+      "dataset_id": "support_ko",
+      "question": "우선순위 고유값 수",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "count_distinct", "column": "우선순위", "alias": "count_distinct_value"}]}
+    },
+    {"id": "support-10", "dataset_id": "support_ko", "question": "평균을 보여줘", "expected_status": "clarification"},
+
+    {
+      "id": "traffic-01",
+      "dataset_id": "traffic",
+      "question": "corridor별 volume 합계 상위 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["corridor"], "metrics": [{"operation": "sum", "column": "volume", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "traffic-02",
+      "dataset_id": "traffic",
+      "question": "vehicle_type별 speed_kph 평균",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["vehicle_type"], "metrics": [{"operation": "mean", "column": "speed_kph", "alias": "mean_value"}]}
+    },
+    {
+      "id": "traffic-03",
+      "dataset_id": "traffic",
+      "question": "volume 80 이상인 행을 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "volume", "operator": "gte", "value": 80}]}
+    },
+    {
+      "id": "traffic-04",
+      "dataset_id": "traffic",
+      "question": "vehicle_type가 car인 volume 합계",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "vehicle_type", "operator": "eq", "value": "car"}], "metrics": [{"operation": "sum", "column": "volume", "alias": "sum_value"}]}
+    },
+    {
+      "id": "traffic-05",
+      "dataset_id": "traffic",
+      "question": "speed_kph 상위 2개 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "speed_kph", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "traffic-06",
+      "dataset_id": "traffic",
+      "question": "volume maximum",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "max", "column": "volume", "alias": "max_value"}]}
+    },
+    {
+      "id": "traffic-07",
+      "dataset_id": "traffic",
+      "question": "speed_kph minimum",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "min", "column": "speed_kph", "alias": "min_value"}]}
+    },
+    {
+      "id": "traffic-08",
+      "dataset_id": "traffic",
+      "question": "corridor별 row count top 2",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["corridor"], "metrics": [{"operation": "count", "alias": "row_count"}], "order_by": [{"column": "row_count", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "traffic-09",
+      "dataset_id": "traffic",
+      "question": "vehicle_type nunique",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "count_distinct", "column": "vehicle_type", "alias": "count_distinct_value"}]}
+    },
+    {"id": "traffic-10", "dataset_id": "traffic", "question": "mean을 보여줘", "expected_status": "clarification"},
+
+    {
+      "id": "retail-p01", "dataset_id": "retail", "case_type": "paraphrase",
+      "question": "region마다 revenue를 더해서 가장 큰 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "sum", "column": "revenue", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "retail-p02", "dataset_id": "retail", "case_type": "paraphrase",
+      "question": "80 이상 revenue 목록",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "revenue", "operator": "gte", "value": 80}]}
+    },
+    {
+      "id": "inventory-p01", "dataset_id": "inventory", "case_type": "paraphrase",
+      "question": "warehouse로 묶어서 stock 평균값",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["warehouse"], "metrics": [{"operation": "mean", "column": "stock", "alias": "mean_value"}]}
+    },
+    {
+      "id": "inventory-p02", "dataset_id": "inventory", "case_type": "paraphrase",
+      "question": "stock 기준 가장 낮은 2개 목록",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "stock", "direction": "asc"}], "limit": 2}
+    },
+    {
+      "id": "support-p01", "dataset_id": "support_ko", "case_type": "paraphrase",
+      "question": "처리시간이 5보다 크거나 같은 행",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "처리시간", "operator": "gte", "value": 5}]}
+    },
+    {
+      "id": "support-p02", "dataset_id": "support_ko", "case_type": "paraphrase",
+      "question": "우선순위가 긴급인 행만 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "우선순위", "operator": "eq", "value": "긴급"}]}
+    },
+    {
+      "id": "traffic-p01", "dataset_id": "traffic", "case_type": "paraphrase",
+      "question": "per corridor volume total top 2",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["corridor"], "metrics": [{"operation": "sum", "column": "volume", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "traffic-p02", "dataset_id": "traffic", "case_type": "paraphrase",
+      "question": "speed kph와 volume corr",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "correlation", "column": "speed_kph", "secondary_column": "volume", "alias": "correlation_value"}], "limit": 1}
+    },
+
+    {
+      "id": "services-p01", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "service line마다 net sales를 더해서 가장 높은 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["service_line"], "metrics": [{"operation": "sum", "column": "net_sales", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "services-p02", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "event date가 2026-06-02 이후인 net sales 평균값",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "event_date", "operator": "gte", "value": "2026-06-02"}], "metrics": [{"operation": "mean", "column": "net_sales", "alias": "mean_value"}]}
+    },
+    {
+      "id": "services-p03", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "customer score와 wait minutes의 correlation",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "correlation", "column": "customer_score", "secondary_column": "wait_minutes", "alias": "correlation_value"}], "limit": 1}
+    },
+    {
+      "id": "services-p04", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "wait minutes 중앙값",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "median", "column": "wait_minutes", "alias": "median_value"}]}
+    },
+    {
+      "id": "services-p05", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "customer score 표준편차",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "stddev", "column": "customer_score", "alias": "stddev_value"}]}
+    },
+    {
+      "id": "services-p06", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "service line이 dental인 행만 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "service_line", "operator": "eq", "value": "dental"}]}
+    },
+    {
+      "id": "services-p07", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "net sales가 100보다 큰 데이터 목록",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "net_sales", "operator": "gt", "value": 100}]}
+    },
+    {
+      "id": "services-p08", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "net sales 하위 2개 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "net_sales", "direction": "asc"}], "limit": 2}
+    },
+    {
+      "id": "services-p09", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "customer score가 비어 있는 행을 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "customer_score", "operator": "is_null"}]}
+    },
+    {
+      "id": "services-p10", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "service line과 net sales만 보여줘",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "select_columns": ["service_line", "net_sales"]}
+    },
+    {
+      "id": "services-p11", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "service line별 건수가 많은 2개",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["service_line"], "metrics": [{"operation": "count", "alias": "row_count"}], "order_by": [{"column": "row_count", "direction": "desc"}], "limit": 2}
+    },
+    {
+      "id": "services-p12", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "2026-06-03까지 event date의 net sales 총합",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "event_date", "operator": "lte", "value": "2026-06-03"}], "metrics": [{"operation": "sum", "column": "net_sales", "alias": "sum_value"}]}
+    },
+    {"id": "services-p13", "dataset_id": "services", "case_type": "paraphrase", "question": "평균값만 알려줘", "expected_status": "clarification"},
+    {
+      "id": "services-p14", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "service line 유니크 수",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "count_distinct", "column": "service_line", "alias": "count_distinct_value"}]}
+    },
+    {
+      "id": "services-p15", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "wait minutes가 10보다 작거나 같은 행",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "wait_minutes", "operator": "lte", "value": 10}]}
+    },
+    {
+      "id": "services-p16", "dataset_id": "services", "case_type": "paraphrase",
+      "question": "net sales 최고값",
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "metrics": [{"operation": "max", "column": "net_sales", "alias": "max_value"}]}
+    },
+
+    {
+      "id": "multiturn-01", "dataset_id": "retail", "case_type": "multiturn", "question": "그중 1개만 보여줘",
+      "previous_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "sum", "column": "revenue", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 5},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "sum", "column": "revenue", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 1}
+    },
+    {
+      "id": "multiturn-02", "dataset_id": "retail", "case_type": "multiturn", "question": "하위 2개로 바꿔줘",
+      "previous_plan": {"operation": "select", "order_by": [{"column": "revenue", "direction": "desc"}], "limit": 2},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "revenue", "direction": "asc"}], "limit": 2}
+    },
+    {
+      "id": "multiturn-03", "dataset_id": "retail", "case_type": "multiturn", "question": "평균으로 바꿔줘",
+      "previous_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "sum", "column": "revenue", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 5},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "mean", "column": "revenue", "alias": "mean_value"}], "order_by": [{"column": "mean_value", "direction": "desc"}], "limit": 5}
+    },
+    {
+      "id": "multiturn-04", "dataset_id": "retail", "case_type": "multiturn", "question": "channel별로 바꿔줘",
+      "previous_plan": {"operation": "aggregate", "group_by": ["region"], "metrics": [{"operation": "mean", "column": "revenue", "alias": "mean_value"}], "order_by": [{"column": "mean_value", "direction": "desc"}], "limit": 5},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "group_by": ["channel"], "metrics": [{"operation": "mean", "column": "revenue", "alias": "mean_value"}], "order_by": [{"column": "mean_value", "direction": "desc"}], "limit": 5}
+    },
+    {
+      "id": "multiturn-05", "dataset_id": "retail", "case_type": "multiturn", "question": "revenue 80 이상만 보고 3개만 보여줘",
+      "previous_plan": {"operation": "select", "order_by": [{"column": "revenue", "direction": "desc"}], "limit": 10},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "filters": [{"column": "revenue", "operator": "gte", "value": 80}], "order_by": [{"column": "revenue", "direction": "desc"}], "limit": 3}
+    },
+    {
+      "id": "multiturn-06", "dataset_id": "retail", "case_type": "multiturn", "question": "조건 없이 전체로 3개만 보여줘",
+      "previous_plan": {"operation": "select", "filters": [{"column": "category", "operator": "eq", "value": "A"}], "order_by": [{"column": "revenue", "direction": "desc"}], "limit": 10},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "revenue", "direction": "desc"}], "limit": 3}
+    },
+    {
+      "id": "multiturn-07", "dataset_id": "services", "case_type": "multiturn", "question": "dental만 보고 상위 1개",
+      "previous_plan": {"operation": "aggregate", "group_by": ["service_line"], "metrics": [{"operation": "sum", "column": "net_sales", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 3},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "aggregate", "filters": [{"column": "service_line", "operator": "eq", "value": "dental"}], "group_by": ["service_line"], "metrics": [{"operation": "sum", "column": "net_sales", "alias": "sum_value"}], "order_by": [{"column": "sum_value", "direction": "desc"}], "limit": 1}
+    },
+    {
+      "id": "multiturn-08", "dataset_id": "services", "case_type": "multiturn", "question": "하위 1개만",
+      "previous_plan": {"operation": "select", "order_by": [{"column": "net_sales", "direction": "desc"}], "limit": 2},
+      "expected_status": "planned",
+      "expected_plan": {"operation": "select", "order_by": [{"column": "net_sales", "direction": "asc"}], "limit": 1}
+    }
+  ]
+}

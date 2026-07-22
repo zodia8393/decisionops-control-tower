@@ -2,34 +2,30 @@
 
 ## 목적
 
-이 문서는 `DecisionOps Control Tower`를 포트폴리오 또는 면접 시연에서 3분 안에 설명하기 위한 패키지다. 핵심은 “모델 점수”가 아니라 “운영 의사결정 제품”이다.
+이 문서는 `Legacy Data Migration & Analysis Copilot`을 포트폴리오 또는 면접 시연에서 설명하기 위한 패키지다. 기본 화면은 분석 Copilot, Migration Lab, 검증 결과, 기술 상세의 4개 영역으로 끝나는 단일 제품이며, 설명 순서는 migration-first다.
 
 ## 시연 순서
 
-1. **Dashboard overview**: 챗봇 기본 화면과 `Public read-only GO`를 보여주고, hosted write API는 별도 `NO_GO` gate임을 설명한다.
-2. **AI Reviewer Brief**: agent가 API/artifact를 읽고 claim risk와 다음 검토 action을 요약하되, deterministic gate를 source of truth로 둔다는 점을 보여준다.
-3. **서울 따릉이 지도**: 실제 OpenStreetMap tile 위에 후보 번호가 겹쳐 표시되는 것을 보여준다.
-4. **영향 정책 비교**: unsafe publish 기준선과 guarded policy의 미검증 claim 차단 차이를 보여준다.
-5. **Policy robustness**: 효과 jitter, confidence stress, source dropout에서 safety dominance, regret, selection stability를 보여준다.
-6. **검토 실행 계획**: 검토 시간이 제한될 때 먼저 볼 local-only 후보를 보여준다.
-7. **심의 근거 패킷**: source age, 3시간 SLA, SHA-256 lock을 확인한다.
-8. **검토 대기열**: 사람이 무엇을 검토해야 하는지, 내부 ID 대신 사람이 읽는 문맥으로 설명한다.
-9. **승인 감사 무결성**: chained hash와 queue-state replay가 함께 `PASS`인지 확인한다.
-10. **OpenAPI**: approval write endpoint와 health/ops/impact/agent endpoint를 보여준다.
-11. **Private demo verifier**: token 값 없이 인증 경계가 검증되는 것을 보여준다.
+1. **Actual RDB integration**: report에서 Firebird 5.0.4 → PostgreSQL 17.10과 `120,000 = 119,988 + 12`를 먼저 보여준다.
+2. **Failure/recovery**: 2,500-row checkpoint, mid-batch rollback, 새 connection resume, completed replay 0행을 설명한다.
+3. **Reconciliation/drift**: table별 source=accepted+rejected=checkpoint, FK 0건, actual catalog drift pre-write block을 확인한다.
+4. **Readable correctness fixture**: UI의 Migration Lab에서 20 source = 11 accepted + 9 rejected와 reject lineage를 펼친다.
+5. **Upload analysis**: CSV를 올리고 집계 질문 → `AnalysisPlan` → 표/차트/SQL을 보여준다.
+6. **Natural multi-turn**: Top-N, sum→mean, categorical filter를 후속 질문으로 수정한다.
+7. **Technical boundary**: synthetic/local과 production 경험의 경계, session-only upload, no arbitrary code를 설명한다.
+
+현재 배포된 Pages는 2026-07-20 legacy snapshot이다. 최신 시연은 local/Compose에서 수행하며 Pages는 live upload가 아닌 recorded read-only surface임을 설명한다.
 
 ## 캡처
 
 | 장면 | 이미지 | 설명 |
 |---|---|---|
-| Dashboard overview | ![Dashboard overview](assets/demo/dashboard_overview.png) | 첫 화면에서 product state와 CTA를 확인 |
-| Sidebar dashboard | ![Dashboard full page](assets/demo/dashboard_full_page.png) | 챗봇과 세부 reviewer workflow를 분리한 화면 |
-| 서울 따릉이 지도 | ![Impact map](assets/demo/impact_map_section.png) | 좌표 기반 후보 조치를 실제 지도 tile 위에 번호로 표시 |
-| 정책 비교 | ![Policy audit section](assets/demo/policy_audit_section.png) | 미검증 claim 차단과 capacity 비교 |
-| Policy robustness | ![Policy robustness](assets/demo/reviewer_policy_robustness_section.png) | deterministic stress scenario의 safety dominance와 regret |
-| 심의 근거 패킷 | ![Evidence bundles](assets/demo/reviewer_evidence_bundles_section.png) | source age, freshness SLA, SHA-256 lock 확인 |
-| 검토 대기열 | ![Reviewer queue](assets/demo/reviewer_queue.png) | 사람이 읽는 검토 문맥과 approval controls |
-| 승인 감사 무결성 | ![Approval audit integrity](assets/demo/approval_audit_integrity_section.png) | decision hash chain과 queue-state replay verdict |
+| Copilot overview | ![Copilot overview](assets/demo/dashboard_overview.png) | 업로드와 질문이 첫 행동인 단일 제품 화면 |
+| Dataset analysis | ![Dataset analysis](assets/demo/chat_dataset_analysis.png) | plan·표·차트·SQL provenance와 후속 수정 |
+| Migration Lab | ![Migration Lab](assets/demo/migration_lab.png) | correctness fixture, reject lineage, 120k recovery |
+| Validation | ![Validation](assets/demo/validation_results_section.png) | automated correctness·recovery evidence |
+| Technical boundary | ![Technical details](assets/demo/technical_details_section.png) | 실행 흐름과 privacy/no-mutation 계약 |
+| Mobile analysis | ![Mobile dataset analysis](assets/demo/mobile_dataset_analysis.png) | 390px에서 upload와 분석 결과 확인 |
 | OpenAPI | ![OpenAPI docs](assets/demo/openapi_docs.png) | API product surface |
 
 캡처 메타데이터는 [assets/demo/demo_screenshot_manifest.json](assets/demo/demo_screenshot_manifest.json)에 남긴다.
@@ -41,6 +37,7 @@
 ```bash
 cd /workspace/prj/personal/data-scientist-career/decisionops-control-tower
 scripts/run_all.sh
+scripts/verify_rdb_migration.sh
 scripts/capture_demo_screenshots.py --url http://127.0.0.1:8093
 ```
 
@@ -53,19 +50,17 @@ PYTHONPATH=src scripts/verify_private_demo.py --url http://127.0.0.1:8093
 
 ## 말해야 할 메시지
 
-- “따릉이 실시간성 inventory를 단순히 보여주는 것이 아니라, 어떤 조치를 검토해야 하는지 impact card로 만든다.”
-- “AI agent는 decision maker가 아니라 health/API/artifact를 읽는 evidence-grounded reviewer assistant다.”
-- “2026-07-20 12:25 KST snapshot은 Seoul validation `READY`, evidence 8/8 fresh로 public read-only gate를 통과했다.”
-- “unsafe publish 기준선은 미검증 claim을 만들 수 있지만 guarded policy는 같은 후보를 local evidence로만 보존한다.”
-- “reviewer/admin token 없이는 approval write가 되지 않는다.”
-- “3시간 SLA를 넘기거나 timestamp가 잘못된 근거는 다시 생성하기 전까지 승인 후보가 아니다.”
-- “Robustness audit은 실현 효과가 아니라 ordering stress test이며, invalid evidence를 먼저 줄이고 동률에서 confidence-adjusted units를 비교한다.”
-- “승인 이력은 이전 event hash와 연결하고 replay 결과를 현재 queue와 대조해 silent mutation을 탐지한다.”
-- “public deploy와 private demo를 분리해, 포트폴리오에서도 책임 있는 배포 판단을 유지한다.”
+- “자연어를 바로 SQL로 실행하지 않고 typed `AnalysisPlan`으로 제한한 뒤 DuckDB가 숫자를 계산한다.”
+- “표·차트만 보여주지 않고 input row, denominator, SQL과 fingerprint를 함께 반환한다.”
+- “migration은 성공 row만 전시하지 않고 모든 source row를 accepted/rejected로 reconcile하고 원인을 추적한다.”
+- “실제 Firebird와 PostgreSQL container 사이에서 120k를 처리했고, SQLite rehearsal은 작은 unit/recovery foundation으로 분리했다.”
+- “2,500행 commit 뒤 다음 batch 중간 실패가 target과 checkpoint를 함께 rollback했고, 새 connection이 persisted checkpoint부터 재개했다.”
+- “120k runtime은 현재 machine 관측값이며 실제 병원 cutover나 production SLA 주장이 아니다.”
+- “업로드 원본은 session-only이며 숫자 계산에는 LLM이나 RAG를 쓰지 않는다.”
 
 ## 현재 한계
 
 - 캡처는 local/private demo 기준이다.
-- OpenStreetMap tile 네트워크가 차단되면 지도 배경 로딩이 제한될 수 있지만 후보 번호와 evidence table은 유지된다.
-- Public read-only `GO`는 aggregate와 근거의 공개 가능 상태이며, 실제 재배치 성과나 hosted write 승인을 뜻하지 않는다.
-- Approval hash chain은 local tamper evidence이며 서명된 외부 attestation은 아니다.
+- Public Pages에서는 파일 업로드와 free-form API가 비활성화된다.
+- 실제 Firebird container adapter는 구현했지만 실제 병원 DB·PHI·production cutover·throughput SLA는 검증 범위가 아니다.
+- 기존 approval/control API는 호환성을 위해 남아 있지만 단일 Copilot 기본 화면의 제품 흐름은 아니다.

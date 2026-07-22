@@ -55,11 +55,14 @@ def test_public_fixture_preserves_latest_aggregate_contract(tmp_path):
         fixture["workbench"]["incident_surface"]["incidents"]
     )
     assert summary["metrics"]["impact_verified_units"] > 0
+    assert summary["metrics"]["impact_model_validated_estimate_units"] > 0
+    assert summary["metrics"]["impact_realized_units"] == 0
+    assert summary["metrics"]["impact_realized_claim_blocked_units"] == summary["metrics"][
+        "impact_candidate_units_addressed"
+    ]
     dashboard = Path(summary["reports"]["dashboard"]).read_text(encoding="utf-8")
-    expected_label = observed_at[:16].replace("T", " ")
-    if observed_at.endswith("+09:00"):
-        expected_label += " KST"
-    assert expected_label in dashboard
+    assert "Decision Intelligence Copilot" in dashboard
+    assert 'id="workspace-summary"' not in dashboard
 
 
 def test_public_fixture_rejects_missing_required_section(tmp_path):
@@ -135,53 +138,33 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert Path(summary["reports"]["agent_candidate_review_notes"]).exists()
     assert Path(summary["reports"]["dashboard"]).exists()
     dashboard_html = Path(summary["reports"]["dashboard"]).read_text(encoding="utf-8")
-    assert "오늘의 결론" in dashboard_html
-    assert "검토 대기열 보기" in dashboard_html
-    assert "지도에서 보기" in dashboard_html
-    assert "근거 패킷 보기" in dashboard_html
-    assert "AI 운영 의사결정 챗봇" in dashboard_html
-    assert "데이터로 바로 질문해 보세요" in dashboard_html
-    assert "연결된 근거" in dashboard_html
-    assert 'class="app-sidebar"' in dashboard_html
-    assert 'data-workspace-panel="chat"' in dashboard_html
-    assert 'id="workspace-summary"' in dashboard_html
-    assert "activatePanel" in dashboard_html
+    assert "Decision Intelligence Copilot" in dashboard_html
+    assert "One Copilot · Verified execution" in dashboard_html
+    assert "분석 Copilot" in dashboard_html
+    assert "무엇을 분석해 볼까요?" in dashboard_html
+    assert 'class="chat-attach"' in dashboard_html
+    assert 'class="chat-evidence-backdrop"' in dashboard_html
+    assert "데이터와 근거" in dashboard_html
+    assert 'data-product-target="analysis"' in dashboard_html
+    assert 'data-product-target="migration"' in dashboard_html
+    assert 'data-product-target="validation"' in dashboard_html
+    assert 'data-product-target="technical"' in dashboard_html
+    assert 'id="workspace-analysis"' in dashboard_html
+    assert 'id="workspace-migration"' in dashboard_html
+    assert 'id="workspace-validation"' in dashboard_html
+    assert 'id="workspace-technical"' in dashboard_html
+    assert 'id="workspace-summary"' not in dashboard_html
     assert 'data-live-chat="false"' in dashboard_html
-    assert "Recorded · read-only" in dashboard_html
-    assert "AI Reviewer Brief" in dashboard_html
-    assert "agent mode:" in dashboard_html
-    assert "deterministic gate:" in dashboard_html
-    assert "Evidence lock" in dashboard_html
-    assert "read-only reviewer assistant" in dashboard_html
-    assert "지도에서 위치 확인" in dashboard_html
-    assert "서울 따릉이 후보 조치 위치 지도" in dashboard_html
-    assert "tile.openstreetmap.org" in dashboard_html
-    assert "지도 타일 © OpenStreetMap contributors" in dashboard_html
-    assert "후보 번호 오버레이 지도" in dashboard_html
-    assert "후보 번호는 실제 지도 타일 위에 표시됩니다" in dashboard_html
-    assert "점이 클수록 예상 완화량이 큽니다." in dashboard_html
-    assert 'href="#ddareungi-action-1"' in dashboard_html
-    assert 'id="ddareungi-action-1"' in dashboard_html
-    assert "표에서 세부 보기" in dashboard_html
-    assert "판단 근거 보기" in dashboard_html
-    assert "권고 이유" in dashboard_html
-    assert "좌표 상태" in dashboard_html
-    assert "서울 따릉이 대여소 현황과 재배치 우선순위 산출물" in dashboard_html
-    assert "검토 기준 보기" in dashboard_html
-    assert "영향 정책 비교" in dashboard_html
-    assert "Reviewer policy robustness" in dashboard_html
-    assert "Oracle regret" in dashboard_html
-    assert "검토 실행 계획" in dashboard_html
-    assert "심의 근거 패킷" in dashboard_html
-    assert "SHA-256" in dashboard_html
-    assert "미검증 claim 단위" in dashboard_html
-    assert "권장 결정" in dashboard_html
-    assert "원천 근거 요약" in dashboard_html
-    assert "다음 결정 기준" in dashboard_html
-    assert "로컬 감사 기록" in dashboard_html
-    assert "회수 여부 검토" in dashboard_html
-    assert "무엇을 판단하나" in dashboard_html
-    assert "무엇을 검토하나" in dashboard_html
+    assert "Recorded demo" in dashboard_html
+    assert "Migration Lab" in dashboard_html
+    assert "Correctness fixture" in dashboard_html
+    assert "Scale & recovery rehearsal" in dashboard_html
+    assert "Evaluation evidence" in dashboard_html
+    assert "사용자 평가" in dashboard_html
+    assert "현재 범위에서 생략" in dashboard_html
+    assert "Claim boundary" in dashboard_html
+    assert "Execution flow" in dashboard_html
+    assert "Safety & privacy contract" in dashboard_html
     assert "Control ID" not in dashboard_html
     assert "SEOUL-IMPACT" not in dashboard_html
     assert "task_" not in dashboard_html
@@ -193,6 +176,8 @@ def test_control_tower_seed_writes_product_surface(tmp_path):
     assert "/api/agent/reviewer-brief" in paths
     assert "/api/chat" in paths
     assert "/api/data/analyze" in paths
+    assert "/api/data/query" in paths
+    assert "/api/migration/case-study" in paths
     assert "/api/agent/candidate/{candidate_id}/review-notes" in paths
     assert "/api/reviewer-evidence-bundles" in paths
     assert "/api/reviewer-policy-robustness" in paths
@@ -302,7 +287,7 @@ def test_quality_floor_requires_fresh_passing_junit(tmp_path):
         verified = list(csv.DictReader(handle))
     evidence = json.loads((reports / "quality_evidence.json").read_text(encoding="utf-8"))
 
-    assert min(float(row["score"]) for row in verified) == 96.0
+    assert min(float(row["score"]) for row in verified) == 96.1
     assert evidence["all_required_evidence"] is True
 
     (reports / "pytest.xml").write_text(
@@ -317,7 +302,7 @@ def test_quality_floor_requires_fresh_passing_junit(tmp_path):
     with (reports / "quality_gate_scores.csv").open(newline="", encoding="utf-8") as handle:
         unverified = list(csv.DictReader(handle))
 
-    assert min(float(row["score"]) for row in unverified) == 95.8
+    assert min(float(row["score"]) for row in unverified) == 95.9
 
 
 def test_policy_audit_and_action_plan_block_public_overclaim():
@@ -361,6 +346,59 @@ def test_policy_audit_and_action_plan_block_public_overclaim():
     assert guarded["blocked_public_claim_units"] == 10
     assert guarded["unsupported_claim_units"] == 0
     assert plan[0]["reviewer_decision"] == "approve_local_review_only"
+
+
+def test_public_go_allows_model_estimate_but_blocks_realized_impact_claim():
+    inputs = {
+        "bike": {
+            "public_deploy": {"decision": "GO"},
+            "seoul_priority": [
+                {
+                    "station_id": "s1",
+                    "station_name": "검증된 추정 후보",
+                    "station_lat": "37.55",
+                    "station_lon": "126.98",
+                    "recommended_bikes_delta": "10",
+                    "severity_score": "2.0",
+                    "recommended_action": "send_bikes",
+                    "capacity": "20",
+                    "bikes_available": "0",
+                    "docks_available": "20",
+                }
+            ],
+            "seoul_validation_summary": {
+                "validation_status": "READY",
+                "snapshot_count": 340,
+                "min_snapshots_for_validation": 24,
+                "precision_at_50": 0.9,
+            },
+        }
+    }
+
+    cards = _build_impact_cards(inputs, limit=1)
+    audit = _build_impact_policy_audit(cards)
+    estimate = next(
+        row for row in audit if row["policy"] == "model_validated_estimate_claim"
+    )
+    unsafe_realized = next(
+        row for row in audit if row["policy"] == "unsafe_realized_impact_claim"
+    )
+    guarded_realized = next(
+        row for row in audit if row["policy"] == "guarded_realized_impact_claim"
+    )
+
+    assert cards[0]["public_claim_state"] == "allowed"
+    assert cards[0]["public_claim_scope"] == "validated_model_estimate_only"
+    assert cards[0]["impact_evidence_tier"] == "model_validated_estimate"
+    assert cards[0]["model_validated_estimate_units"] == 10
+    assert cards[0]["realized_delta_vs_no_action_units"] is None
+    assert cards[0]["realized_impact_status"] == "not_observed"
+    assert estimate["audit_result"] == "pass"
+    assert unsafe_realized["audit_result"] == "fail"
+    assert unsafe_realized["unsupported_claim_units"] == 10
+    assert guarded_realized["audit_result"] == "pass"
+    assert guarded_realized["blocked_public_claim_units"] == 10
+    assert guarded_realized["unsupported_claim_units"] == 0
 
 
 def test_reviewer_policy_robustness_is_deterministic_and_guarded():

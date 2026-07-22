@@ -1,4 +1,4 @@
-"""Shared HTML renderer for the DecisionOps reviewer dashboard."""
+"""Shared HTML renderer for the Decision Intelligence Copilot dashboard."""
 
 from __future__ import annotations
 
@@ -202,32 +202,6 @@ button:focus-visible {
 .sidebar-nav__item[aria-current="page"] .sidebar-nav__badge {
   background: #dceef8;
   color: #114461;
-}
-.sidebar-footer {
-  margin-top: auto;
-  border: 1px solid #2c485e;
-  border-radius: var(--radius-md);
-  background: #132c41;
-  padding: var(--space-3);
-}
-.sidebar-footer__label {
-  color: #8fa9bb;
-  font-size: 0.68rem;
-  font-weight: 800;
-}
-.sidebar-footer strong {
-  display: block;
-  margin-top: 4px;
-  color: #ffffff;
-  font-size: 0.9rem;
-}
-.sidebar-footer__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: var(--space-3);
-  color: #a9bfce;
-  font-size: 0.68rem;
 }
 .workspace {
   min-width: 0;
@@ -1051,7 +1025,10 @@ def _impact_reason(item: dict[str, Any]) -> str:
 def _validation_note(item: dict[str, Any]) -> str:
     if str(item.get("guardrail_state")) == "validation_not_ready":
         return "검증 전 상태입니다. 운영 참고용으로만 쓰고 외부 성과 주장에는 사용하지 않습니다."
-    return "검증 기준을 통과한 후보입니다. 그래도 현장 실행 전에는 검토 이력을 남깁니다."
+    return (
+        "모델 검증 기준을 통과한 추정 후보입니다. 현장 outcome이 없으므로 실현 성과로는 "
+        "표현하지 않습니다."
+    )
 
 
 def _confidence_label(item: dict[str, Any]) -> str:
@@ -1081,6 +1058,8 @@ def _render_impact_evidence(item: dict[str, Any]) -> str:
         ("현재 상태", _impact_current_state(item)),
         ("예상 효과", _impact_expected_effect(item)),
         ("검증 주의", _validation_note(item)),
+        ("공개 가능 범위", _display(item.get("public_claim_scope", "local_review_only"))),
+        ("실현 효과 상태", _display(item.get("realized_impact_status", "not_observed"))),
         ("심각도", f"{_as_float(item.get('severity_score')):.2f}"),
         ("신뢰도", _confidence_label(item)),
         ("좌표 상태", _coordinate_label(item)),
@@ -1561,6 +1540,13 @@ def _render_impact_rows(impact_cards: list[dict[str, Any]], limit: int) -> list[
 
 
 def _policy_note(item: dict[str, Any]) -> str:
+    policy = str(item.get("policy", ""))
+    if policy == "unsafe_realized_impact_claim":
+        return "모델 추정치를 현장 실현 성과로 바꾸므로 허용하지 않습니다."
+    if policy == "guarded_realized_impact_claim":
+        return "현장 dispatch와 counterfactual outcome이 없으면 실현 성과 claim을 차단합니다."
+    if policy == "model_validated_estimate_claim":
+        return "검증된 모델 추정치라는 범위와 한계를 함께 표시할 때만 허용합니다."
     if str(item.get("audit_result")) == "fail":
         return "이 기준선은 미검증 성과 claim을 만들 수 있어 운영 정책상 허용하지 않습니다."
     if _as_float(item.get("blocked_public_claim_units")) > 0:
@@ -1739,6 +1725,40 @@ def _render_artifact_rows(artifacts: dict[str, Any]) -> list[str]:
     return rows or [_empty_row(3, "산출물 상태는 live API runtime에서 확인할 수 있습니다.")]
 
 
+def _render_migration_reconciliation_rows(report: dict[str, Any]) -> list[str]:
+    rows = []
+    for item in report.get("reconciliation", []):
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(item.get('source_system'))}.{_escape(item.get('source_table'))}</td>"
+            f"<td>{_escape(item.get('target_table'))}</td>"
+            f"<td>{_escape(item.get('source_rows'))}</td>"
+            f"<td>{_escape(item.get('accepted_rows'))}</td>"
+            f"<td>{_escape(item.get('rejected_rows'))}</td>"
+            f"<td>{_pill(item.get('status'))}</td>"
+            "</tr>"
+        )
+    return rows or [_empty_row(6, "Migration reconciliation을 생성하지 못했습니다.")]
+
+
+def _render_migration_reject_rows(report: dict[str, Any]) -> list[str]:
+    rows = []
+    for item in report.get("rejects", [])[:12]:
+        source = (
+            f"{item.get('source_system')}.{item.get('source_table')}"
+            f"#{item.get('source_row_number')}"
+        )
+        rows.append(
+            "<tr>"
+            f"<td>{_escape(source)}</td>"
+            f"<td>{_escape(item.get('target_table'))}</td>"
+            f"<td>{_pill(item.get('reason_code'))}</td>"
+            f"<td>{_escape(item.get('detail'))}</td>"
+            "</tr>"
+        )
+    return rows or [_empty_row(4, "Reject row가 없습니다.")]
+
+
 def render_dashboard(
     *,
     state: dict[str, Any],
@@ -1754,6 +1774,7 @@ def render_dashboard(
     summary: dict[str, Any] | None = None,
     ops: dict[str, Any] | None = None,
     recorded_chat: dict[str, dict[str, Any]] | None = None,
+    migration_case: dict[str, Any] | None = None,
     include_actions: bool = True,
     include_script: bool = True,
 ) -> str:
@@ -1768,6 +1789,7 @@ def render_dashboard(
     summary = summary or {}
     ops = ops or {}
     recorded_chat = recorded_chat or {}
+    migration_case = migration_case or {}
     metrics = state.get("metrics", {})
     source_status = state.get("source_status", {})
     if not isinstance(source_status, dict):
@@ -1781,7 +1803,7 @@ def render_dashboard(
     auth_label = "사용" if ops.get("auth_required") else "미사용"
     blockers = state.get("blockers", [])
     candidate_units = metrics.get("impact_candidate_units_addressed", 0)
-    blocked_units = metrics.get("impact_public_claim_blocked_units", 0)
+    realized_claim_blocked_units = metrics.get("impact_realized_claim_blocked_units", 0)
     action_plan_units = metrics.get("reviewer_action_plan_candidate_units", 0)
     fresh_bundle_rows = metrics.get("reviewer_evidence_fresh_rows", 0)
     robustness_summary = reviewer_policy_robustness.get("summary", {})
@@ -1791,6 +1813,17 @@ def render_dashboard(
     audit_status = str(audit_integrity.get("status", "unknown")).upper()
     rag_status = ops.get("rag", {}) if isinstance(ops.get("rag"), dict) else {}
     vector_store = str(rag_status.get("vector_store", "memory"))
+    if str(public_deploy) == "GO":
+        blocker_heading = "남은 제한"
+        blocker_intro = (
+            "공개 read-only snapshot은 사용할 수 있습니다. Hosted write API와 현장 실행은 "
+            "별도 인증과 사람의 승인이 준비될 때까지 제한됩니다."
+        )
+    else:
+        blocker_heading = "왜 보류인가"
+        blocker_intro = (
+            "아래 제한을 해결하기 전에는 공개 snapshot과 성과 claim을 확정하지 않습니다."
+        )
     chat_surface = render_chat_surface(
         recorded_chat,
         live_chat=include_actions,
@@ -1805,7 +1838,12 @@ def render_dashboard(
         _metric("검토 대기", pending, "승인/반려/근거 요청 필요", "risk" if pending else "good"),
         _metric("긴급 항목", p0_pending, "P0부터 먼저 확인", "risk" if p0_pending else "good"),
         _metric("따릉이 후보 조치", metrics.get("impact_card_rows", 0), f"예상 영향 {candidate_units} 단위"),
-        _metric("차단한 공개 claim", blocked_units, "대외 성과 주장 금지 단위", "risk" if blocked_units else "good"),
+        _metric(
+            "실현 성과 claim 차단",
+            realized_claim_blocked_units,
+            "현장 outcome 미관측 단위",
+            "risk" if realized_claim_blocked_units else "good",
+        ),
         _metric("검토 계획", len(reviewer_action_plan), f"상위 계획 {action_plan_units} 단위"),
         _metric(
             "Stress 우위율",
@@ -2013,78 +2051,52 @@ def render_dashboard(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f5f8c'/%3E%3Cpath d='M18 20h28v8H18zM18 36h18v8H18z' fill='white'/%3E%3C/svg%3E">
-  <title>AI 운영 의사결정 챗봇 · DecisionOps</title>
+  <title>Decision Intelligence Copilot</title>
   <style>{DASHBOARD_CSS}{CHAT_CSS}</style>
 </head>
 <body data-auth-required="{str(bool(ops.get("auth_required"))).lower()}">
   <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
   <div class="app-shell">
-    <aside class="app-sidebar" id="app-sidebar" aria-label="DecisionOps Control Tower 세부 화면">
+    <aside class="app-sidebar" id="app-sidebar" aria-label="Decision Intelligence Copilot 세부 화면">
       <div class="sidebar-brand">
-        <span class="sidebar-brand__mark" aria-hidden="true">DO</span>
+        <span class="sidebar-brand__mark" aria-hidden="true">DI</span>
         <span>
-          <span class="sidebar-brand__name">DecisionOps</span>
-          <span class="sidebar-brand__desc">AI Control Tower</span>
+          <span class="sidebar-brand__name">Decision Intelligence</span>
+          <span class="sidebar-brand__desc">Analysis Copilot</span>
         </span>
       </div>
       <nav class="sidebar-nav" aria-label="화면 선택">
-        <div class="sidebar-nav__group">Main</div>
+        <div class="sidebar-nav__group">핵심</div>
         <a class="sidebar-nav__item" id="nav-chat" href="#workspace-chat"
-           data-panel-target="chat" data-panel-title="AI 운영 의사결정 챗봇" aria-current="page">
-          <span class="sidebar-nav__title">AI 챗봇</span>
-          <span class="sidebar-nav__badge">MAIN</span>
-          <span class="sidebar-nav__desc">질문 · 데이터 분석 · 연결된 근거</span>
+           data-panel-target="chat" data-panel-title="데이터 분석 Copilot" aria-current="page">
+          <span class="sidebar-nav__title">분석 Copilot</span>
+          <span class="sidebar-nav__desc">파일 · 질문 · 후속 분석 · 근거</span>
         </a>
-
-        <div class="sidebar-nav__group">Details</div>
         <a class="sidebar-nav__item" id="nav-summary" href="#workspace-summary"
-           data-panel-target="summary" data-panel-title="운영 요약">
-          <span class="sidebar-nav__title">운영 요약</span>
-          <span class="sidebar-nav__badge">{len(metric_cards)}</span>
-          <span class="sidebar-nav__desc">핵심 지표 · AI brief · blocker</span>
+           data-panel-target="summary" data-panel-title="운영 현황">
+          <span class="sidebar-nav__title">운영 현황</span>
+          <span class="sidebar-nav__desc">핵심 지표 · 제한 · 시스템 상태</span>
         </a>
         <a class="sidebar-nav__item" id="nav-candidates" href="#workspace-candidates"
            data-panel-target="candidates" data-panel-title="후보 분석">
           <span class="sidebar-nav__title">후보 분석</span>
-          <span class="sidebar-nav__badge">{len(impact_cards)}</span>
+          <span class="sidebar-nav__badge">{len(impact_cards)} 후보</span>
           <span class="sidebar-nav__desc">지도에서 보기 · 따릉이 후보 조치</span>
         </a>
-        <a class="sidebar-nav__item" id="nav-policy" href="#workspace-policy"
-           data-panel-target="policy" data-panel-title="정책 검증">
-          <span class="sidebar-nav__title">정책 검증</span>
-          <span class="sidebar-nav__badge">{len(robustness_rows)}</span>
-          <span class="sidebar-nav__desc">guardrail 비교 · stress test</span>
-        </a>
-        <a class="sidebar-nav__item" id="nav-evidence" href="#workspace-evidence"
-           data-panel-target="evidence" data-panel-title="근거와 실행 계획">
-          <span class="sidebar-nav__title">근거 · 실행 계획</span>
-          <span class="sidebar-nav__badge">{len(reviewer_evidence_bundles)}</span>
-          <span class="sidebar-nav__desc">근거 패킷 보기 · freshness lock</span>
-        </a>
         <a class="sidebar-nav__item" id="nav-review" href="#workspace-review"
-           data-panel-target="review" data-panel-title="사람 검토와 감사">
-          <span class="sidebar-nav__title">검토 대기열 보기</span>
-          <span class="sidebar-nav__badge">{pending}</span>
-          <span class="sidebar-nav__desc">승인 · 이력 · audit integrity</span>
+           data-panel-target="review" data-panel-title="검토와 승인">
+          <span class="sidebar-nav__title">검토·승인</span>
+          <span class="sidebar-nav__badge">{pending} 대기</span>
+          <span class="sidebar-nav__desc">실행 계획 · 근거 · 승인 이력</span>
         </a>
 
-        <div class="sidebar-nav__group">System</div>
-        <a class="sidebar-nav__item" id="nav-system" href="#workspace-system"
-           data-panel-target="system" data-panel-title="시스템 상태">
-          <span class="sidebar-nav__title">시스템 상태</span>
-          <span class="sidebar-nav__badge">{"LIVE" if state.get("demo_mode_ready") else "CHECK"}</span>
-          <span class="sidebar-nav__desc">runtime · artifacts · auth {_escape(auth_label)}</span>
+        <div class="sidebar-nav__group">상세</div>
+        <a class="sidebar-nav__item" id="nav-technical" href="#workspace-technical"
+           data-panel-target="technical" data-panel-title="기술 검증">
+          <span class="sidebar-nav__title">기술 검증</span>
+          <span class="sidebar-nav__desc">guardrail 비교 · stress test</span>
         </a>
       </nav>
-      <div class="sidebar-footer">
-        <span class="sidebar-footer__label">오늘의 결론</span>
-        <strong>{_escape(release_label)}</strong>
-        <div class="sidebar-footer__meta">
-          <span>Data · {_escape(data_observed_label)}</span>
-          <span>RAG · {_escape(vector_store)}</span>
-          <span>Auth · {_escape(auth_label)}</span>
-        </div>
-      </div>
     </aside>
     <button class="sidebar-backdrop" type="button" data-sidebar-backdrop
             aria-label="사이드바 닫기" hidden></button>
@@ -2100,7 +2112,7 @@ def render_dashboard(
           </button>
           <div class="workspace-topbar__title">
             <span class="eyebrow">현재 화면</span>
-            <h1 data-current-panel-title>AI 운영 의사결정 챗봇</h1>
+            <h1 data-current-panel-title>데이터 분석 Copilot</h1>
           </div>
         </div>
         <div class="workspace-topbar__status">
@@ -2150,14 +2162,24 @@ def render_dashboard(
       <section class="section" id="blockers">
         <div class="section__header">
           <div>
-            <h2>왜 보류인가</h2>
-            <p class="section__intro">
-              지금은 공개 배포보다 검토와 근거 확인이 우선입니다.
-              아래 항목이 해결되기 전까지 외부 공개와 성과 claim은 보류합니다.
-            </p>
+            <h2>{_escape(blocker_heading)}</h2>
+            <p class="section__intro">{_escape(blocker_intro)}</p>
           </div>
         </div>
         {_render_blockers(blockers if isinstance(blockers, list) else [])}
+      </section>
+
+      <section class="section" id="operations">
+        <div class="section__header">
+          <div>
+            <h2>시스템 상세</h2>
+            <p class="section__intro">
+              필요할 때만 확인하는 runtime, 인증, 산출물 freshness 정보입니다.
+              공개 demo는 live service가 아니라 recorded snapshot일 수 있습니다.
+            </p>
+          </div>
+        </div>
+        {_table(["산출물", "존재", "갱신 시각(UTC)"], _render_artifact_rows(ops.get("artifacts", {})))}
       </section>
         </div>
 
@@ -2181,7 +2203,8 @@ def render_dashboard(
             <h2>따릉이 후보 조치</h2>
             <p class="section__intro">
               어느 대여소에서 자전거를 보충하거나 회수해야 하는지 보여줍니다.
-              `검증 전` 항목은 운영 판단 참고용이며 대외 성과로 말하면 안 됩니다.
+              `READY`도 model-validated estimate를 뜻하며, 현장 outcome이 없는 후보를 실현 성과로
+              말하면 안 됩니다.
             </p>
           </div>
           <div class="section__meta">{_pill(len(impact_cards), f"{len(impact_cards)}건")}</div>
@@ -2193,15 +2216,46 @@ def render_dashboard(
       </section>
         </div>
 
-        <div class="workspace-panel" id="workspace-policy"
-             data-workspace-panel="policy" aria-labelledby="nav-policy" tabindex="-1" hidden>
+        <div class="workspace-panel" id="workspace-technical"
+             data-workspace-panel="technical" aria-labelledby="nav-technical" tabindex="-1" hidden>
+      <section class="section" id="legacy-hospital-migration">
+        <div class="section__header">
+          <div>
+            <h2>Legacy Hospital Migration</h2>
+            <p class="section__intro">
+              서로 다른 MS-SQL·Firebird 형태의 synthetic extract를 canonical EMR로 mapping한
+              correctness case입니다. 실제 환자 데이터나 live DB write를 사용하지 않습니다.
+            </p>
+          </div>
+          <div class="section__meta">{_pill(migration_case.get("status", "unknown"))}</div>
+        </div>
+        <div class="metric-grid">
+          {_metric("Source rows", migration_case.get("metrics", {}).get("source_rows", 0), "모든 원천 row를 계산", "good")}
+          {_metric("Accepted", migration_case.get("metrics", {}).get("accepted_rows", 0), "canonical guardian·patient·encounter", "good")}
+          {_metric("Rejected", migration_case.get("metrics", {}).get("rejected_rows", 0), "reason code와 source lineage 보존", "risk")}
+          {_metric("Result fingerprint", str(migration_case.get("result_fingerprint_sha256", ""))[:12], "동일 input rerun에서 동일", "good")}
+        </div>
+        {_table(
+            ["Source table", "Canonical target", "Source", "Accepted", "Rejected", "Reconciliation"],
+            _render_migration_reconciliation_rows(migration_case),
+        )}
+        <details class="details-panel">
+          <summary>Reject lineage 보기</summary>
+          {_table(
+              ["Source row", "Target", "Reason", "Detail"],
+              _render_migration_reject_rows(migration_case),
+          )}
+        </details>
+      </section>
+
       <section class="section" id="policy-audit">
         <div class="section__header">
           <div>
             <h2>영향 정책 비교</h2>
             <p class="section__intro">
               무검토 공개 기준선과 guardrail 정책을 비교합니다.
-              목표는 후보 이동량을 숨기는 것이 아니라 미검증 성과 claim을 차단하는 것입니다.
+              Public GO 이후에도 model-validated estimate와 realized field impact를 분리해
+              성과 과장을 차단합니다.
             </p>
           </div>
           <div class="section__meta">{_pill(len(impact_policy_audit), f"{len(impact_policy_audit)}개 정책")}</div>
@@ -2231,8 +2285,8 @@ def render_dashboard(
       </section>
         </div>
 
-        <div class="workspace-panel" id="workspace-evidence"
-             data-workspace-panel="evidence" aria-labelledby="nav-evidence" tabindex="-1" hidden>
+        <div class="workspace-panel" id="workspace-review"
+             data-workspace-panel="review" aria-labelledby="nav-review" tabindex="-1" hidden>
       <section class="section" id="action-plan">
         <div class="section__header">
           <div>
@@ -2266,10 +2320,6 @@ def render_dashboard(
             _render_evidence_bundle_rows(reviewer_evidence_bundles, 12),
         )}
       </section>
-        </div>
-
-        <div class="workspace-panel" id="workspace-review"
-             data-workspace-panel="review" aria-labelledby="nav-review" tabindex="-1" hidden>
       <section class="section" id="reviewer-queue">
         <div class="section__header">
           <div>
@@ -2307,19 +2357,6 @@ def render_dashboard(
           <div class="section__meta">{_pill(audit_status)}</div>
         </div>
         {_table(["검증", "결과", "의미"], _render_audit_integrity_rows(audit_integrity))}
-      </section>
-        </div>
-
-        <div class="workspace-panel" id="workspace-system"
-             data-workspace-panel="system" aria-labelledby="nav-system" tabindex="-1" hidden>
-      <section class="section" id="operations">
-        <div class="section__header">
-          <div>
-            <h2>운영 상태</h2>
-            <p class="section__intro">개발자와 운영자가 확인할 산출물 freshness와 runtime 상태입니다.</p>
-          </div>
-        </div>
-        {_table(["산출물", "존재", "갱신 시각(UTC)"], _render_artifact_rows(ops.get("artifacts", {})))}
       </section>
         </div>
       </main>

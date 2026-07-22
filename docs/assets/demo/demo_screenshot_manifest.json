@@ -1,188 +1,183 @@
 {
-  "captured_at_utc": "2026-07-20T04:02:54+00:00",
-  "base_url": "http://127.0.0.1:8099",
+  "captured_at_utc": "2026-07-22T08:48:11+00:00",
+  "base_url": "http://127.0.0.1:8093",
   "health": {
     "status": "ok",
     "demo_mode_ready": true,
-    "public_deploy_decision": "GO",
+    "public_deploy_decision": "NO_GO",
     "impact_card_rows": 12,
     "queue": {
-      "total": 50,
+      "total": 42,
       "by_state": {
-        "pending_reviewer": 50
+        "pending_reviewer": 42
       }
     },
     "auth_required": false,
     "rag": {
-      "vector_store": "memory",
+      "vector_store": "qdrant",
       "embedding_provider": "hashing-char-ngram-v1",
       "vector_size": 384,
-      "indexed": true,
-      "corpus_hash": "b23b0304b5c9124c46a41e14508546b4d1124363fccba853416bfef73af8e9b9"
+      "indexed": false,
+      "corpus_hash": null
     }
   },
   "captures": [
     {
       "name": "dashboard_overview",
       "path": "docs/assets/demo/dashboard_overview.png",
-      "url": "http://127.0.0.1:8099/dashboard",
+      "url": "http://127.0.0.1:8093/dashboard",
       "selector": null,
       "full_page": false,
-      "size_bytes": 188464
+      "size_bytes": 89718
     },
     {
       "name": "dashboard_full_page",
       "path": "docs/assets/demo/dashboard_full_page.png",
-      "url": "http://127.0.0.1:8099/dashboard",
+      "url": "http://127.0.0.1:8093/dashboard",
       "selector": null,
       "full_page": true,
-      "size_bytes": 188464
+      "size_bytes": 89718
     },
     {
-      "name": "chat_grounded_response",
-      "path": "docs/assets/demo/chat_grounded_response.png",
-      "url": "http://127.0.0.1:8099/dashboard#decision-chat",
+      "name": "migration_lab",
+      "path": "docs/assets/demo/migration_lab.png",
+      "url": "http://127.0.0.1:8093/dashboard#workspace-migration",
+      "selector": "#workspace-migration",
+      "full_page": false,
+      "size_bytes": 323461
+    },
+    {
+      "name": "chat_dataset_overview",
+      "path": "docs/assets/demo/chat_dataset_overview.png",
+      "url": "http://127.0.0.1:8093/dashboard#decision-chat",
       "selector": "#decision-chat",
       "full_page": false,
-      "size_bytes": 174835
+      "size_bytes": 131145
     },
     {
-      "name": "impact_map_section",
-      "path": "docs/assets/demo/impact_map_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#impact-map",
-      "selector": "#impact-map",
-      "size_bytes": 698296
-    },
-    {
-      "name": "impact_map",
-      "path": "docs/assets/demo/impact_map.png",
-      "url": "http://127.0.0.1:8099/dashboard#impact-map",
-      "selector": "#impact-map",
+      "name": "chat_dataset_analysis",
+      "path": "docs/assets/demo/chat_dataset_analysis.png",
+      "url": "http://127.0.0.1:8093/dashboard#decision-chat",
+      "selector": "#decision-chat",
       "full_page": false,
-      "size_bytes": 769043
+      "size_bytes": 360685
     },
     {
-      "name": "policy_audit_section",
-      "path": "docs/assets/demo/policy_audit_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#policy-audit",
-      "selector": "#policy-audit",
-      "size_bytes": 97776
-    },
-    {
-      "name": "policy_audit",
-      "path": "docs/assets/demo/policy_audit.png",
-      "url": "http://127.0.0.1:8099/dashboard#policy-audit",
-      "selector": "#policy-audit",
+      "name": "chat_data_science_prediction",
+      "path": "docs/assets/demo/chat_data_science_prediction.png",
+      "url": "http://127.0.0.1:8093/dashboard#decision-chat",
+      "selector": "#decision-chat",
       "full_page": false,
-      "size_bytes": 218570
+      "size_bytes": 190612
     },
     {
-      "name": "reviewer_policy_robustness_section",
-      "path": "docs/assets/demo/reviewer_policy_robustness_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#policy-robustness",
-      "selector": "#policy-robustness",
-      "size_bytes": 137415
+      "name": "validation_results_section",
+      "path": "docs/assets/demo/validation_results_section.png",
+      "url": "http://127.0.0.1:8093/dashboard#workspace-validation",
+      "selector": "#workspace-validation",
+      "size_bytes": 121317
     },
     {
-      "name": "reviewer_policy_robustness",
-      "path": "docs/assets/demo/reviewer_policy_robustness.png",
-      "url": "http://127.0.0.1:8099/dashboard#policy-robustness",
-      "selector": "#policy-robustness",
+      "name": "validation_results",
+      "path": "docs/assets/demo/validation_results.png",
+      "url": "http://127.0.0.1:8093/dashboard#workspace-validation",
+      "selector": "#workspace-validation",
       "full_page": false,
-      "size_bytes": 204137
+      "size_bytes": 142795
     },
     {
-      "name": "reviewer_action_plan_section",
-      "path": "docs/assets/demo/reviewer_action_plan_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#action-plan",
-      "selector": "#action-plan",
-      "size_bytes": 136455
+      "name": "technical_details_section",
+      "path": "docs/assets/demo/technical_details_section.png",
+      "url": "http://127.0.0.1:8093/dashboard#workspace-technical",
+      "selector": "#workspace-technical",
+      "size_bytes": 110841
     },
     {
-      "name": "reviewer_action_plan",
-      "path": "docs/assets/demo/reviewer_action_plan.png",
-      "url": "http://127.0.0.1:8099/dashboard#action-plan",
-      "selector": "#action-plan",
+      "name": "technical_details",
+      "path": "docs/assets/demo/technical_details.png",
+      "url": "http://127.0.0.1:8093/dashboard#workspace-technical",
+      "selector": "#workspace-technical",
       "full_page": false,
-      "size_bytes": 270308
-    },
-    {
-      "name": "reviewer_evidence_bundles_section",
-      "path": "docs/assets/demo/reviewer_evidence_bundles_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#evidence-bundles",
-      "selector": "#evidence-bundles",
-      "size_bytes": 138623
-    },
-    {
-      "name": "reviewer_evidence_bundles",
-      "path": "docs/assets/demo/reviewer_evidence_bundles.png",
-      "url": "http://127.0.0.1:8099/dashboard#evidence-bundles",
-      "selector": "#evidence-bundles",
-      "full_page": false,
-      "size_bytes": 259057
-    },
-    {
-      "name": "approval_audit_integrity_section",
-      "path": "docs/assets/demo/approval_audit_integrity_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#approval-audit-integrity",
-      "selector": "#approval-audit-integrity",
-      "size_bytes": 47871
-    },
-    {
-      "name": "approval_audit_integrity",
-      "path": "docs/assets/demo/approval_audit_integrity.png",
-      "url": "http://127.0.0.1:8099/dashboard#approval-audit-integrity",
-      "selector": "#approval-audit-integrity",
-      "full_page": false,
-      "size_bytes": 167898
-    },
-    {
-      "name": "reviewer_queue_section",
-      "path": "docs/assets/demo/reviewer_queue_section.png",
-      "url": "http://127.0.0.1:8099/dashboard#reviewer-queue",
-      "selector": "#reviewer-queue",
-      "size_bytes": 1136755
-    },
-    {
-      "name": "reviewer_queue",
-      "path": "docs/assets/demo/reviewer_queue.png",
-      "url": "http://127.0.0.1:8099/dashboard#reviewer-queue",
-      "selector": "#reviewer-queue",
-      "full_page": false,
-      "size_bytes": 229742
+      "size_bytes": 137209
     },
     {
       "name": "openapi_docs",
       "path": "docs/assets/demo/openapi_docs.png",
-      "url": "http://127.0.0.1:8099/docs",
+      "url": "http://127.0.0.1:8093/docs",
       "selector": null,
       "full_page": false,
-      "size_bytes": 129263
+      "size_bytes": 123748
     },
     {
       "name": "mobile_overview",
       "path": "docs/assets/demo/mobile_overview.png",
-      "url": "http://127.0.0.1:8099/dashboard",
+      "url": "http://127.0.0.1:8093/dashboard",
       "selector": null,
       "full_page": false,
-      "size_bytes": 76224
+      "size_bytes": 47271
     },
     {
-      "name": "mobile_chat_grounded_response",
-      "path": "docs/assets/demo/mobile_chat_grounded_response.png",
-      "url": "http://127.0.0.1:8099/dashboard#decision-chat",
+      "name": "mobile_dataset_analysis",
+      "path": "docs/assets/demo/mobile_dataset_analysis.png",
+      "url": "http://127.0.0.1:8093/dashboard#decision-chat",
       "selector": "#decision-chat",
       "full_page": false,
-      "size_bytes": 127696
+      "size_bytes": 49240
+    },
+    {
+      "name": "mobile_data_science_prediction",
+      "path": "docs/assets/demo/mobile_data_science_prediction.png",
+      "url": "http://127.0.0.1:8093/dashboard#decision-chat",
+      "selector": ".analysis-result",
+      "full_page": false,
+      "size_bytes": 41906
     }
   ],
   "qa": {
-    "desktop_sidebar_navigation": "7/7",
-    "desktop_default_panel": "chat",
+    "desktop_sidebar_navigation": "4/4",
+    "desktop_default_panel": "analysis",
+    "desktop_rdb_migration": "Firebird → PostgreSQL · 120,000 = 119,988 + 12 · rollback/resume/replay PASS",
+    "desktop_migration_case": "20 = 11 accepted + 9 rejected",
+    "desktop_dataset_required": "PASS",
+    "desktop_evidence_disclosure": "collapsed → open → collapsed",
+    "desktop_automatic_dataset_overview": "upload → description/quality/basic statistics/recommendations",
+    "desktop_recommendation_execution": "recommendation → DuckDB result/chart",
+    "desktop_duplicate_request_guard": "recommendation double-click → 1 result",
+    "desktop_new_analysis_transition": "rank select → fresh grouped mean",
+    "desktop_additional_capability_guide": "natural 'other analysis' → fresh recommendations → DuckDB execution",
+    "desktop_categorical_share": "channel share = web 60% + store 40%",
+    "desktop_sticky_dataset": "conversation reset → same uploaded dataset retained",
+    "desktop_dataset_analysis": "upload → plan → table/chart/SQL",
+    "desktop_result_actions": "CSV download + SQL copy",
+    "desktop_analysis_follow_up": "top 2 → top 1",
+    "desktop_analysis_metric_revision": "sum → mean",
+    "desktop_analysis_filter_revision": "channel = web",
+    "desktop_analysis_target_revision": "revenue → orders while preserving filter/group",
+    "desktop_analysis_state_reset": "conditions reset → dataset retained",
+    "desktop_analysis_reset": "PASS",
+    "desktop_natural_conversation": "greeting → profile → capability guide",
+    "desktop_composite_filters": "multi-value IN + numeric range",
+    "desktop_derived_ratio_guard": "unsupported formula → explicit clarification",
+    "desktop_advanced_analysis": "distribution → chart/plan/provenance → bins 20",
+    "desktop_prediction": "baseline → held-out test → interval/error/SHAP/model card",
+    "desktop_signed_chart": "3 rows including 1 negative bar",
+    "desktop_dataset_scope_guard": "unsupported question → dataset clarification",
+    "desktop_report_header_detection": "row 3 promoted → 3 data rows",
+    "desktop_dataset_profile_answer": "description without SELECT",
+    "desktop_dataset_capability_guide": "schema-aware examples without RAG abstention",
+    "desktop_summary_row_default": "3 input → 2 denominator; uniform chart omitted",
+    "desktop_dataset_header_normalization": "duplicate → revenue_2",
+    "desktop_dataset_validation_error": "sensitive header rejected → readable inline error",
+    "desktop_failed_replacement_guard": "invalid replacement → prior dataset retained",
     "desktop_horizontal_overflow": false,
     "mobile_sidebar_drawer": "PASS",
-    "mobile_sidebar_navigation": "summary → chat",
+    "mobile_sidebar_navigation": "validation → analysis",
+    "mobile_evidence_disclosure": "collapsed → open → collapsed",
+    "mobile_dataset_analysis": "PASS",
+    "mobile_automatic_dataset_overview": "PASS",
+    "mobile_prediction": "PASS",
     "mobile_horizontal_overflow": false,
-    "console_errors": []
+    "console_errors": [],
+    "page_errors": []
   }
 }

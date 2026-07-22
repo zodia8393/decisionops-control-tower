@@ -1,0 +1,60 @@
+services:
+  migration-firebird:
+    image: firebirdsql/firebird:5.0.4
+    environment:
+      FIREBIRD_ROOT_PASSWORD: ${MIGRATION_FIREBIRD_PASSWORD:-portfolio-local-firebird}
+      FIREBIRD_DATABASE: legacy_hospital.fdb
+      FIREBIRD_DATABASE_DEFAULT_CHARSET: UTF8
+    tmpfs:
+      - /var/lib/firebird/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "echo 'SELECT 1 FROM RDB$$DATABASE;' | isql -user SYSDBA -password \"$$FIREBIRD_ROOT_PASSWORD\" localhost:/var/lib/firebird/data/legacy_hospital.fdb >/dev/null",
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  migration-postgres:
+    image: postgres:17.10-alpine
+    environment:
+      POSTGRES_DB: migration
+      POSTGRES_USER: migration
+      POSTGRES_PASSWORD: ${MIGRATION_POSTGRES_PASSWORD:-portfolio-local-postgres}
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U migration -d migration"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  migration-runner:
+    build:
+      context: .
+      dockerfile: docker/migration-runner/Dockerfile
+    depends_on:
+      migration-firebird:
+        condition: service_healthy
+      migration-postgres:
+        condition: service_healthy
+    environment:
+      MIGRATION_FIREBIRD_PASSWORD: ${MIGRATION_FIREBIRD_PASSWORD:-portfolio-local-firebird}
+      MIGRATION_POSTGRES_PASSWORD: ${MIGRATION_POSTGRES_PASSWORD:-portfolio-local-postgres}
+    command:
+      - python
+      - scripts/run_rdb_migration.py
+      - --entities-per-table
+      - ${MIGRATION_ENTITIES_PER_TABLE:-40000}
+      - --batch-size
+      - ${MIGRATION_BATCH_SIZE:-2500}
+      - --report-json
+      - /reports/firebird_postgres_migration.json
+      - --report-md
+      - /reports/firebird_postgres_migration.md
+    volumes:
+      - ${MIGRATION_REPORT_DIR:-./build/migration-rdb}:/reports

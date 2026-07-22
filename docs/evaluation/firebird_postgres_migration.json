@@ -1,0 +1,71 @@
+{
+  "contract_version": "decisionops-rdb-migration-report-v1",
+  "generated_at_utc": "2026-07-22T08:44:04.311377Z",
+  "status": "pass",
+  "run_id": "rdb-5e8e08e2142b69b5b9ef",
+  "source_engine": "Firebird 5.0.4.1812",
+  "target_engine": "PostgreSQL 17.10",
+  "source_rows": 120000,
+  "accepted_rows": 119988,
+  "rejected_rows": 12,
+  "target_counts": {
+    "guardian": 39997,
+    "patient": 39996,
+    "encounter": 39995
+  },
+  "reason_counts": {
+    "duplicate_primary_key": 1,
+    "foreign_key_missing": 7,
+    "required_field_missing": 1,
+    "transform_error": 3
+  },
+  "reconciliation": [
+    {
+      "source_table": "LEGACY_GUARDIAN",
+      "target_table": "guardian",
+      "source_rows": 40000,
+      "accepted_rows": 39997,
+      "rejected_rows": 3,
+      "checkpoint_rows": 40000,
+      "status": "pass"
+    },
+    {
+      "source_table": "LEGACY_PATIENT",
+      "target_table": "patient",
+      "source_rows": 40000,
+      "accepted_rows": 39996,
+      "rejected_rows": 4,
+      "checkpoint_rows": 40000,
+      "status": "pass"
+    },
+    {
+      "source_table": "LEGACY_ENCOUNTER",
+      "target_table": "encounter",
+      "source_rows": 40000,
+      "accepted_rows": 39995,
+      "rejected_rows": 5,
+      "checkpoint_rows": 40000,
+      "status": "pass"
+    }
+  ],
+  "committed_batches": 48,
+  "resumed_from_source_rows": 2500,
+  "replay_processed_rows": 0,
+  "rollback_verified": true,
+  "checkpoint_resume_verified": true,
+  "idempotent_replay": true,
+  "schema_drift_blocked_before_write": true,
+  "schema_drift_detail": "source schema drift in LEGACY_GUARDIAN_DRIFT; missing columns: OWNER_NAME",
+  "foreign_key_violations": 0,
+  "source_fingerprint_sha256": "c6ecf53810d13d69697a7424784990cad680421aa1d5c9da9c503e4811d2ee05",
+  "mapping_fingerprint_sha256": "e2ccf88c8e370b0d40c149f04d2cd9e8d933dfbbfbfce803cfb6acaa491ab095",
+  "result_fingerprint_sha256": "70b8a585a64812cdf9fe7f980d3251e7371ea9cff4270ada4cbe10d45bc55460",
+  "elapsed_seconds": 30.931291,
+  "observed_rows_per_second": 3879.566,
+  "limitations": [
+    "Source rows are deterministic synthetic records; no real patient data is used.",
+    "This container integration is not evidence of a production hospital cutover.",
+    "Observed throughput is machine-specific and is not a production SLA.",
+    "CDC, lock contention, backup/WAL recovery, cloud networking, and PHI controls are out of scope."
+  ]
+}

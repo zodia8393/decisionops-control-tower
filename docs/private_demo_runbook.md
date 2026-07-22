@@ -9,7 +9,7 @@
 - Repo: `/workspace/prj/personal/data-scientist-career/decisionops-control-tower`
 - 기본 앱 URL: `http://127.0.0.1:8093`
 - 기본 output root: `/DATA/HJ/prj/data-scientist-career/projects/decisionops-control-tower`
-- 공개 read-only snapshot은 upstream validation과 freshness를 통과해 `GO`이며, hosted write는 credential 설정 전까지 `NO_GO`다.
+- 공개 data/claim 상태는 실행 시점 freshness에 따라 `GO/NO_GO`가 달라진다. 2026-07-21 실행은 freshness 0/8로 `NO_GO`였고, 2026-07-22 09:03 KST 실행은 갱신된 source freshness 8/8로 `GO`다. 실제 Pages는 legacy `STALE`, hosted write는 credential 설정 전까지 `NO_GO`다.
 
 ## 1. Credential 설정
 
@@ -115,7 +115,7 @@ COMPOSE_PROJECT_NAME=decisionops-control-tower PORT=8093 docker compose down
 
 ## 7. 시연 스크립트
 
-1. Dashboard 첫 화면에서 `Public read-only GO`와 hosted write `NO_GO`가 분리된 경계임을 보여준다.
+1. Dashboard 첫 화면에서 현재 public data/claim의 동적 `GO/NO_GO`와 hosted write `NO_GO`가 분리된 경계임을 보여준다.
 2. 지도에서 서울 따릉이 후보 조치 위치를 보여준다.
 3. Impact card에서 권고 action, 좌표 상태, validation blocker를 설명한다.
 4. Review queue에서 “무엇을 검토하나”와 “원천 근거 요약”을 보여준다.

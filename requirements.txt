@@ -5,6 +5,8 @@ matplotlib
 seaborn
 scipy
 pyarrow
+openpyxl
+duckdb
 fastapi
 uvicorn[standard]
 httpx
