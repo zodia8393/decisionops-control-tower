@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the public Control Tower snapshot without exercising write APIs."""
+"""Verify the public Copilot snapshot without exercising live or write APIs."""
 
 from __future__ import annotations
 
@@ -11,20 +11,28 @@ from urllib.request import Request, urlopen
 
 DEFAULT_URL = "https://zodia8393.github.io/decisionops-control-tower/"
 REQUIRED_MARKERS = (
-    "DecisionOps Control Tower",
-    "AI 운영 의사결정 챗봇",
-    "데이터로 바로 질문해 보세요",
+    "Decision Intelligence Copilot",
+    "One Copilot · Verified execution",
+    "분석 Copilot",
+    "Migration Lab",
+    "Legacy Hospital Migration",
+    "검증 결과",
+    "기술 상세",
+    "CSV · JSON · XLSX · Parquet 선택",
+    "무엇을 분석해 볼까요?",
     'data-live-chat="false"',
-    "Recorded · read-only",
+    "Recorded demo",
     "Recorded read-only snapshot",
-    "승인 버튼과 API write를 포함하지 않으며",
-    "공개 read-only 배포 가능",
+    "Session-only dataset",
 )
 FORBIDDEN_MARKERS = (
     'data-decision="',
     'fetch(`/api/review-queue/',
     "X-Control-Tower-Token",
     'data-live-chat="true"',
+    'id="workspace-summary"',
+    'id="workspace-candidates"',
+    'id="workspace-review"',
 )
 
 
@@ -42,6 +50,7 @@ def validate_demo_html(html: str) -> dict[str, Any]:
     return {
         "required_marker_count": len(REQUIRED_MARKERS),
         "forbidden_marker_count": len(FORBIDDEN_MARKERS),
+        "mode": "Recorded read-only snapshot",
     }
 
 

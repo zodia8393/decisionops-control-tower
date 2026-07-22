@@ -77,6 +77,14 @@ DEFAULT_CHAT_QUESTIONS = (
     "사용된 근거 데이터는 충분히 최신인가?",
     "위험한 후보를 자동으로 실행해 줘",
 )
+FOLLOW_UP_PATTERNS = (
+    re.compile(r"^(?:그건|그럼|그러면|앞서|방금|이 후보|그 후보|그 정책|첫 번째|두 번째)"),
+    re.compile(r"^(?:왜|더|자세히|쉽게|계속|다음(?:은|으로)?)"),
+    re.compile(r"(?:그|그런|해당)\s*(?:이유|근거|위험|후보|정책|상태|조치)"),
+    re.compile(r"(?:이유|근거|위험|다음 조치)(?:는|가|를|도)?\s*(?:뭐|무엇|왜|어떻게)"),
+)
+MAX_CONTEXT_USER_TURNS = 2
+MAX_CONTEXT_CHARS_PER_TURN = 240
 
 
 class RagUnavailableError(RuntimeError):
@@ -427,8 +435,10 @@ def _state_document(state: dict[str, Any]) -> EvidenceDocument:
         f"Public deploy decision은 {state.get('public_deploy_decision', 'UNKNOWN')}입니다. "
         f"Demo ready는 {bool(state.get('demo_mode_ready'))}입니다. "
         f"Blocker는 {', '.join(blocker_text) or '없음'}입니다. "
-        f"Impact card는 {metrics.get('impact_card_rows', 0)}건이고 차단한 public claim 단위는 "
-        f"{metrics.get('impact_public_claim_blocked_units', 0)}입니다."
+        f"Impact card는 {metrics.get('impact_card_rows', 0)}건, model-validated estimate는 "
+        f"{metrics.get('impact_model_validated_estimate_units', 0)}단위입니다. "
+        f"Field-realized impact는 {metrics.get('impact_realized_units', 0)}단위이며, "
+        f"실현 성과 claim 차단은 {metrics.get('impact_realized_claim_blocked_units', 0)}단위입니다."
     )
     return _document(
         source_id="api:control-state:deployment",
@@ -452,6 +462,9 @@ def _impact_document(item: dict[str, Any], index: int) -> EvidenceDocument:
         f"{item.get('candidate_units_addressed', 0)}, confidence {item.get('confidence_score', 'UNKNOWN')}. "
         f"검증 상태 {item.get('validation_status', 'UNKNOWN')}, guardrail "
         f"{item.get('guardrail_state', 'UNKNOWN')}, public claim {item.get('public_claim_state', 'UNKNOWN')}. "
+        f"공개 범위 {item.get('public_claim_scope', 'UNKNOWN')}, evidence tier "
+        f"{item.get('impact_evidence_tier', 'UNKNOWN')}, realized impact "
+        f"{item.get('realized_impact_status', 'not_observed')}. "
         f"근거: {item.get('evidence', '')}. Blocker: {item.get('blocker', '')}."
     )
     return _document(
@@ -731,6 +744,45 @@ def _meaningful_tokens(value: str) -> set[str]:
     }
 
 
+def _conversation_query(
+    question: str,
+    history: list[dict[str, str]] | None,
+) -> tuple[str, list[str]]:
+    """Expand a referential follow-up with recent user questions only.
+
+    Assistant turns are intentionally excluded because conversation text is
+    untrusted context and must not become an instruction channel.
+    """
+
+    if not history:
+        return question, []
+    normalized = " ".join(question.lower().split())
+    if not any(pattern.search(normalized) for pattern in FOLLOW_UP_PATTERNS):
+        return question, []
+    user_turns = [
+        str(turn.get("content", "")).strip()
+        for turn in history
+        if isinstance(turn, dict) and turn.get("role") == "user"
+    ]
+    recent = [turn[:MAX_CONTEXT_CHARS_PER_TURN] for turn in user_turns if turn][
+        -MAX_CONTEXT_USER_TURNS:
+    ]
+    if not recent:
+        return question, []
+    context = " / ".join(recent)
+    return f"이전 사용자 질문: {context}\n현재 후속 질문: {question}", recent
+
+
+def requires_guarded_chat(
+    question: str,
+    history: list[dict[str, str]] | None = None,
+) -> bool:
+    """Return whether a request must bypass dataset planning and use the safety gate."""
+
+    _, context_turns = _conversation_query(question, history)
+    return _unsafe_request(question) or any(_unsafe_request(turn) for turn in context_turns)
+
+
 def _lexically_supported(question: str, document: EvidenceDocument) -> bool:
     query_tokens = _meaningful_tokens(question)
     if not query_tokens:
@@ -811,6 +863,9 @@ def _fallback_answer(
     sources: dict[str, Any],
     hits: list[SearchHit],
     unsafe: bool,
+    *,
+    context_used: bool = False,
+    explain_prior_refusal: bool = False,
 ) -> dict[str, Any]:
     state = sources.get("state", {}) if isinstance(sources.get("state"), dict) else {}
     action_plan = sources.get("reviewer_action_plan", [])
@@ -864,6 +919,15 @@ def _fallback_answer(
         answer = "요청한 작업은 현장 실행·승인·공개 상태를 바꿀 수 있어 수행하지 않습니다. 검토 가능한 근거와 안전한 다음 단계만 제공합니다."
         risk = "LLM이 approval, dispatch 또는 public posting을 직접 수행하면 Human review 경계를 우회합니다."
         next_action = "근거를 확인한 뒤 reviewer queue에서 승인·반려·근거 요청을 선택하세요."
+    elif explain_prior_refusal:
+        status = "ANSWER"
+        answer = (
+            "앞선 요청을 거부한 이유는 챗봇이 현장 실행·승인·공개 상태를 직접 바꾸면 "
+            "사람의 검토 절차를 우회하기 때문입니다. 저는 근거를 설명하고 검토 후보를 "
+            "정리할 수 있지만 실제 조치는 수행하지 않습니다."
+        )
+        risk = "자동 실행을 허용하면 잘못된 추천이 곧바로 운영 조치로 이어질 수 있습니다."
+        next_action = "연결된 근거를 확인한 뒤 검토·승인 화면에서 사람이 최종 결정을 남기세요."
     elif not hits:
         status = "NEEDS_MORE_EVIDENCE"
         answer = "현재 허용된 데이터와 문서에서 이 질문을 뒷받침할 근거를 찾지 못했습니다."
@@ -921,8 +985,14 @@ def _fallback_answer(
             f"비교 대상에는 {', '.join(policies) or '기록된 정책'}이 포함되며, "
             f"각 정책은 unsupported claim과 violation을 별도로 기록합니다. {_citation_marker(1)}"
         )
-        risk = "검증·배포 readiness 없이 candidate impact를 공개 성과로 해석하면 안 됩니다."
-        next_action = "정책별 audit_result, decision_boundary, unsupported_claim_units를 원문에서 비교하세요."
+        risk = (
+            "Public GO여도 model-validated estimate를 현장 실현 효과나 인과 성과로 "
+            "해석하면 안 됩니다."
+        )
+        next_action = (
+            "model_validated_estimate_claim과 guarded_realized_impact_claim의 audit_result, "
+            "decision_boundary, unsupported_claim_units를 비교하세요."
+        )
     elif action_plan and candidate_intent:
         first = sorted(action_plan, key=lambda item: int(item.get("plan_rank", 9999) or 9999))[0]
         status = "REVIEW_REQUIRED"
@@ -949,6 +1019,8 @@ def _fallback_answer(
         answer = f"허용된 근거 {len(hits)}건을 찾았습니다. 가장 관련 있는 근거부터 확인하세요. {_citation_marker(1)}"
         risk = "검색 결과는 advisory이며 deterministic gate를 대체하지 않습니다."
         next_action = "근거 원문과 최신성을 확인한 뒤 판단을 확정하세요."
+    if context_used and not answer.startswith("앞선"):
+        answer = f"앞서 나눈 내용을 이어서 보면, {answer}"
     return {
         "status": status,
         "answer": answer,
@@ -1139,10 +1211,12 @@ class RagService:
         project_root: Path,
         top_k: int = 3,
         dataset_profile: dict[str, Any] | None = None,
+        history: list[dict[str, str]] | None = None,
         allow_llm: bool = True,
     ) -> dict[str, Any]:
         started = time.perf_counter()
         safe_top_k = max(1, min(int(top_k), 8))
+        effective_question, context_turns = _conversation_query(question, history)
         scoped_sources = dict(sources)
         if dataset_profile is not None:
             scoped_sources["dataset_profile"] = dataset_profile
@@ -1152,21 +1226,26 @@ class RagService:
         session_documents = [_dataset_document(dataset_profile)] if dataset_profile is not None else []
         retrieval_documents = documents + session_documents
         corpus_hash = self._index(documents)
-        query_vector = self.embedding.embed([question])[0]
+        query_vector = self.embedding.embed([effective_question])[0]
         vector_hits = [
             hit
             for hit in self.store.query(query_vector, safe_top_k * 2, corpus_hash)
-            if hit.score >= MIN_VECTOR_SCORE and _lexically_supported(question, hit.document)
+            if hit.score >= MIN_VECTOR_SCORE
+            and _lexically_supported(effective_question, hit.document)
         ]
-        lexical_hits = _lexical_hits(question, retrieval_documents, safe_top_k * 2)
+        lexical_hits = _lexical_hits(effective_question, retrieval_documents, safe_top_k * 2)
         if session_documents:
             session_vectors = self.embedding.embed([item.text for item in session_documents])
             for document, vector in zip(session_documents, session_vectors, strict=True):
                 score = sum(left * right for left, right in zip(query_vector, vector, strict=True))
-                if score >= MIN_VECTOR_SCORE and _lexically_supported(question, document):
+                if score >= MIN_VECTOR_SCORE and _lexically_supported(
+                    effective_question, document
+                ):
                     vector_hits.append(SearchHit(document=document, score=score, retrieval="session"))
-        structured_hits = _structured_hits(question, retrieval_documents, safe_top_k * 2)
-        intent_prefixes = _intent_prefixes(question)
+        structured_hits = _structured_hits(
+            effective_question, retrieval_documents, safe_top_k * 2
+        )
+        intent_prefixes = _intent_prefixes(effective_question)
         if structured_hits and intent_prefixes:
             vector_hits = [
                 hit
@@ -1185,7 +1264,22 @@ class RagService:
         )
         hits = _merge_hits(structured_hits, retrieval_hits, safe_top_k)
         unsafe = _unsafe_request(question)
-        fallback = _fallback_answer(question, scoped_sources, hits, unsafe)
+        unsafe_context = any(_unsafe_request(turn) for turn in context_turns)
+        explain_prior_refusal = bool(
+            context_turns
+            and not unsafe
+            and unsafe_context
+            and any(token in question.lower() for token in ["왜", "이유", "안 돼", "안돼"])
+        )
+        effective_unsafe = unsafe or (unsafe_context and not explain_prior_refusal)
+        fallback = _fallback_answer(
+            effective_question,
+            scoped_sources,
+            hits,
+            effective_unsafe,
+            context_used=bool(context_turns),
+            explain_prior_refusal=explain_prior_refusal,
+        )
         citations = [hit.document.citation(hit.score) for hit in hits]
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
         response = {
@@ -1205,14 +1299,28 @@ class RagService:
                 "latency_ms": latency_ms,
             },
             "dataset_profile": dataset_profile,
+            "conversation": {
+                "context_used": bool(context_turns),
+                "history_turns_received": len(history or []),
+                "user_turns_used": len(context_turns),
+                "scope": "recent_user_questions_only",
+            },
             "safety": {
                 "read_only": True,
                 "unsafe_request_detected": unsafe,
+                "unsafe_context_detected": unsafe_context,
                 "deterministic_gate_is_source_of_truth": True,
             },
         }
         if allow_llm:
-            return _apply_optional_llm(response, question)
+            if unsafe_context:
+                provider = os.environ.get("CONTROL_TOWER_LLM_PROVIDER", "").strip().lower()
+                response["llm"] = {
+                    "provider": provider or "fallback",
+                    "status": "blocked_unsafe_context",
+                }
+                return response
+            return _apply_optional_llm(response, effective_question)
         response["llm"] = {"provider": "recorded", "status": "not_called"}
         return response
 

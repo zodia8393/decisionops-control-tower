@@ -32,10 +32,12 @@ def test_dashboard_ui_contract_matches_live_testclient_dashboard(tmp_path):
     assert dashboard.status_code == 200
     assert result["required_checks"] > 20
     assert result["forbidden_checks"] > 0
-    assert dashboard.text.count('data-panel-target="') == 7
-    assert not re.search(r'id="workspace-chat"[^>]*\bhidden\b', dashboard.text)
-    for panel in ["summary", "candidates", "policy", "evidence", "review", "system"]:
+    assert dashboard.text.count('data-product-target="') == 4
+    assert not re.search(r'id="workspace-analysis"[^>]*\bhidden\b', dashboard.text)
+    for panel in ["migration", "validation", "technical"]:
         assert re.search(rf'id="workspace-{panel}"[^>]*\bhidden\b', dashboard.text)
+    for legacy_panel in ["summary", "candidates", "review"]:
+        assert f'id="workspace-{legacy_panel}"' not in dashboard.text
 
 
 def test_prepare_demo_state_can_archive_existing_store(tmp_path):

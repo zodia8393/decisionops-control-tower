@@ -1,10 +1,10 @@
 # 데이터 흐름도(DFD)
 
-최종 업데이트: 2026-07-02 KST
+최종 업데이트: 2026-07-22 KST
 
 ## 범위
 
-이 문서는 `decisionops-control-tower`의 현재 데이터 흐름을 설명한다. 범위는 Stage 1/2 산출물을 FastAPI, dashboard, freshness-gated evidence bundle, RBAC-lite approval write, SQLite persistence, monitoring snapshot, deployment readiness decision을 가진 local product-quality control surface로 바꾸는 과정이다.
+이 문서는 기존 Control Tower evidence/review 흐름을 설명한다. Decision Intelligence Copilot의 업로드 분석과 migration 경로는 [analysis_copilot_architecture.md](analysis_copilot_architecture.md)에 분리해 기록한다. 공개 여부는 매 실행 freshness에 따라 동적으로 바뀐다. 2026-07-21 실행은 `NO_GO`였고, source가 갱신된 2026-07-22 09:03 KST 실행은 freshness 8/8로 data/claim `GO`다.
 
 핵심 안전 속성은 Control Tower가 reviewer decision을 local에 저장할 수는 있지만, upstream ML/agent artifact를 변경하거나 현실 action을 dispatch하지 않는다는 점이다.
 
@@ -94,7 +94,7 @@ flowchart LR
 | D1.1 `control_state.json` | Stage readiness, blocker, metric, deploy decision, artifact pointer | control-state rule | API, dashboard, deployment readiness |
 | D1.2 `control_review_queue.csv` | Stage 2 queue와 control rule에서 projection된 review-required item | review queue projection | API, dashboard, approval handler |
 | D1.3 `api_contract.json` | endpoint surface, auth/write policy, expected artifact | API contract writer | 검토자, OpenAPI/API smoke check |
-| D1.4 `dashboard/index.html` | local reviewer dashboard | dashboard renderer | 검토자/데모 사용자 |
+| D1.4 `dashboard/index.html` | 분석·migration·validation·technical 단일 Copilot UI | Copilot dashboard renderer | 데모 사용자/채용 검토자 |
 | D1.5 `control_tower.sqlite` | approval/rejection history와 audit record | RBAC-lite approval handler | API history endpoint, dashboard |
 | D1.6 ops metric snapshot/history | queue status, freshness, health, API/runtime metric | monitoring writer | deployment readiness, dashboard/API |
 | D1.7 deployment readiness artifact | local/container/hosted/public decision과 blocker | deployment readiness writer | 검토자, portfolio runbook |
@@ -128,10 +128,10 @@ flowchart LR
 | auth 경계 | `CONTROL_TOWER_ROLE_TOKENS`가 설정되면 write action은 `X-Control-Tower-Token` 기반 reviewer/admin role이 필요하다. |
 | observability 경계 | request log, ops metric, deployment readiness는 숨은 runtime state가 아니라 명시적 artifact다. |
 | audit 경계 | Hash chain/replay는 local tamper evidence이며 외부 서명·공증을 주장하지 않는다. |
-| public deploy 경계 | allowlist aggregate의 public read-only snapshot은 `GO`; hosted write는 credential/target hardening 전 `NO_GO`다. |
+| public deploy 경계 | allowlist/read-only isolation, 실행 시점 data freshness, 실제 Pages release를 분리한다. 2026-07-22 09:03 KST data/claim은 `GO`지만 deployed Pages는 `STALE`; hosted write도 credential/target hardening 전 `NO_GO`다. |
 
 ## 현재 운영 상태
 
 - Local/container smoke check가 가능하다.
-- Dashboard와 OpenAPI는 reviewer-facing product surface다.
-- Public read-only snapshot은 validation/freshness 통과 상태이며, production identity/hosting hardening 전까지 hosted write만 차단된다.
+- Dashboard는 recruiter-facing single Copilot surface이며, 기존 reviewer/approval API는 호환 계층으로만 남아 있다.
+- 2026-07-22 09:03 KST current source static snapshot은 build/smoke와 evidence freshness 8/8을 통과했다. Deployed Pages는 current source 반영 전까지 `STALE`이다.

@@ -12,6 +12,7 @@
 4. Impact card를 public claim으로 바로 공개하는 기준선보다 guarded/capacity policy가 더 안전한가?
 5. AI Reviewer Agent가 deterministic gate를 source of truth로 유지하면서 reviewer에게 근거 요약만 제공하는가?
 6. 오래되거나 timestamp가 잘못된 impact evidence가 reviewer 승인 후보로 재사용되지 않는가?
+7. Public `GO` 이후에도 model-validated estimate가 field-realized impact로 오인되지 않는가?
 7. 효과 추정치, confidence, source completeness가 흔들려도 guarded reviewer ordering이 safety-first 기준을 유지하는가?
 8. Reviewer decision history 변조나 현재 queue state 불일치를 deterministic하게 탐지하는가?
 
@@ -30,6 +31,7 @@
 | control-state rules | Stage 3 release/blocker orchestration |
 | unsafe auto-publish policy | 미검증 impact claim 기준선 |
 | impact-guarded capacity policy | 검토 용량 제한 하 우선순위 정렬 |
+| estimate-vs-realized claim-scope policy | 모델 검증 추정치와 현장 실현 효과의 허용 표현 비교 |
 | confidence-weighted guarded policy | invalid evidence를 먼저 제외하고 confidence-adjusted 후보 단위로 정렬 |
 | evidence-gated reviewer agent | health/API/artifact 근거만 요약하는 read-only assistant |
 | freshness-gated evidence bundle | impact/action join의 최신성·content drift 검증 |
@@ -40,6 +42,7 @@
 - Stage 2 `baseline_single_agent` vs `guarded_decision_agent`.
 - Stage 3 product slice는 API/write persistence가 없는 seed 대비 FastAPI, SQLite history, dashboard approval action을 추가한다.
 - Stage 3 impact policy audit은 `unsafe_auto_publish`와 guarded policies를 같은 impact cards로 비교한다.
+- Claim-scope audit은 `model_validated_estimate_claim`, `unsafe_realized_impact_claim`, `guarded_realized_impact_claim`을 동일 카드에 적용한다. 현장 dispatch와 counterfactual outcome이 없으면 realized units는 `0/미관측`이고 전체 후보 단위를 realized-claim blocker로 유지한다.
 - Reviewer action plan은 source order와 impact-guarded order를 비교해 제한된 검토 용량에서 먼저 볼 후보를 정한다.
 - Reviewer robustness audit은 4개 deterministic scenario와 capacity 3/6/8에서 source order, impact guarded, confidence-weighted guarded를 비교한다.
 - AI Reviewer Agent는 LLM/agent 없는 기준선 대비 source status, claim-safety rule, evidence refs, candidate notes를 생성하지만 approval write와 `GO/NO_GO` 변경은 하지 않는다.
@@ -53,7 +56,10 @@
 - `review_queue_items`: reviewer backlog 수.
 - `approval_history_rows`: reviewer decision audit trail 수.
 - `guarded_success_rate`, `holdout_success_rate`: Stage 2 agent gate.
-- `impact_unsupported_claim_units_avoided`: unsafe baseline 대비 guarded policy가 차단한 미검증 claim 단위.
+- `impact_model_validated_estimate_units`: prospective validation을 통과한 모델 추정 후보 단위.
+- `impact_realized_units`: dispatch와 outcome으로 실제 관측된 단위. 현재 product boundary에서는 `0`이다.
+- `impact_realized_claim_blocked_units`: model estimate를 실현 성과로 표현하지 못하게 차단한 단위.
+- `impact_unsupported_claim_units_avoided`: unsafe realized-impact baseline 대비 guarded policy가 차단한 unsupported claim 단위.
 - `reviewer_action_plan_candidate_units`: 상위 검토 계획이 커버하는 후보 이동량.
 - `agent_reviewer_brief.mode`: fallback/optional LLM 사용 여부.
 - `agent_candidate_review_notes`: 후보별 read-only evidence note 수.
@@ -69,6 +75,7 @@
 
 - Bike-share prospective readiness가 `READY`가 아니면 public read-only snapshot은 `NO_GO`다.
 - Seoul validation이 `READY`여도 public snapshot readiness가 `GO`가 아니면 public claim은 blocked 상태다. Hosted write API의 인증 gate는 이 판단과 분리한다.
+- Public snapshot이 `GO`여도 허용 범위는 `validated_model_estimate_only`다. Field-realized claim은 별도 dispatch/outcome 및 counterfactual measurement가 없으면 계속 차단한다.
 - NY 511 incident sample은 public historical data이며 live dispatch authority가 아니다.
 - Approval write path는 local SQLite에 제한하고 upstream artifact와 field action은 변경하지 않는다.
 - Agent output은 advisory이며 deterministic gate와 artifact를 덮어쓰지 않는다.

@@ -1,0 +1,110 @@
+{
+  "contract_version": "decisionops-migration-rehearsal-report-v1",
+  "generated_at_utc": "2026-07-21T03:26:03.598042Z",
+  "status": "pass",
+  "config": {
+    "contract_version": "decisionops-migration-rehearsal-v1",
+    "entities_per_source": 20000,
+    "chunk_size": 2500,
+    "interrupt_after_batches": 3
+  },
+  "source_systems": 2,
+  "source_tables": 6,
+  "source_rows": 120000,
+  "accepted_rows": 119962,
+  "rejected_rows": 38,
+  "target_counts": {
+    "guardian": 39992,
+    "patient": 39988,
+    "encounter": 39982
+  },
+  "reason_counts": {
+    "duplicate_primary_key": 2,
+    "foreign_key_missing": 20,
+    "required_field_missing": 8,
+    "transform_error": 8
+  },
+  "reconciliation": [
+    {
+      "source_system": "legacy_a",
+      "source_table": "owners",
+      "target_table": "guardian",
+      "source_rows": 20000,
+      "accepted_rows": 19996,
+      "rejected_rows": 4,
+      "accounted_rows": 20000,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "customers",
+      "target_table": "guardian",
+      "source_rows": 20000,
+      "accepted_rows": 19996,
+      "rejected_rows": 4,
+      "accounted_rows": 20000,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "animals",
+      "target_table": "patient",
+      "source_rows": 20000,
+      "accepted_rows": 19994,
+      "rejected_rows": 6,
+      "accounted_rows": 20000,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "pet_master",
+      "target_table": "patient",
+      "source_rows": 20000,
+      "accepted_rows": 19994,
+      "rejected_rows": 6,
+      "accounted_rows": 20000,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_a",
+      "source_table": "charts",
+      "target_table": "encounter",
+      "source_rows": 20000,
+      "accepted_rows": 19991,
+      "rejected_rows": 9,
+      "accounted_rows": 20000,
+      "status": "pass"
+    },
+    {
+      "source_system": "legacy_b",
+      "source_table": "visits",
+      "target_table": "encounter",
+      "source_rows": 20000,
+      "accepted_rows": 19991,
+      "rejected_rows": 9,
+      "accounted_rows": 20000,
+      "status": "pass"
+    }
+  ],
+  "committed_batches": 48,
+  "checkpoint_count": 6,
+  "interruption_observed": true,
+  "resumed_from_source_rows": 7500,
+  "replay_processed_rows": 0,
+  "idempotent_replay": true,
+  "schema_drift_blocked_before_write": true,
+  "schema_drift_detail": "source schema drift in owners; missing columns: owner_name",
+  "foreign_key_violations": 0,
+  "source_fingerprint_sha256": "cde7cc1d080cf22212b489fc66fcf0202322a70f92b990a9a12c0cd40fd7b6b3",
+  "mapping_fingerprint_sha256": "3ff699c5a1a938ac0a0bc92f7d2ed364c75b2369a6dbccb2cd96dc74e4069c95",
+  "result_fingerprint_sha256": "4472b9beb7f152433c1f0cc1e78b5ceb170ecab2e126695f78631a9b4febd640",
+  "elapsed_seconds": 0.732244,
+  "observed_rows_per_second": 163879.87,
+  "reused_completed_run": false,
+  "database_bytes": 19144704,
+  "limitations": [
+    "Generated public-safe rows; no real patient or guardian data.",
+    "SQLite staging validates batch transactions and relational integrity, not MS-SQL or Firebird network behavior.",
+    "Observed throughput is machine-specific and is not a production SLA or live migration claim."
+  ]
+}

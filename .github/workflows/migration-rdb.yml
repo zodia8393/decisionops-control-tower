@@ -1,0 +1,48 @@
+name: migration-rdb
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "compose.migration.yaml"
+      - "docker/migration-runner/**"
+      - "src/decisionops_control_tower/migration_case.py"
+      - "src/decisionops_control_tower/rdb_migration.py"
+      - "scripts/run_rdb_migration.py"
+      - "scripts/verify_rdb_migration.sh"
+      - "tests/test_rdb_migration.py"
+      - ".github/workflows/migration-rdb.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "compose.migration.yaml"
+      - "docker/migration-runner/**"
+      - "src/decisionops_control_tower/migration_case.py"
+      - "src/decisionops_control_tower/rdb_migration.py"
+      - "scripts/run_rdb_migration.py"
+      - "scripts/verify_rdb_migration.sh"
+      - "tests/test_rdb_migration.py"
+      - ".github/workflows/migration-rdb.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firebird-to-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run 120k migration integration
+        run: scripts/verify_rdb_migration.sh
+
+      - name: Upload reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebird-postgres-migration-report
+          path: build/migration-rdb/
+          if-no-files-found: error

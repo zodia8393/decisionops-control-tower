@@ -1,0 +1,146 @@
+{
+  "contract_version": "decisionops-migration-case-v1",
+  "case_id": "legacy-hospital-emr-v1",
+  "title": "Two legacy hospital extracts to canonical EMR",
+  "description": "Synthetic correctness case for source-to-target mapping, reject lineage, and reconciliation. It is not a production database migration claim.",
+  "canonical_tables": {
+    "guardian": {
+      "primary_key": "guardian_id",
+      "required_fields": ["guardian_id", "full_name", "source_system"],
+      "foreign_keys": []
+    },
+    "patient": {
+      "primary_key": "patient_id",
+      "required_fields": ["patient_id", "guardian_id", "patient_name", "species", "source_system"],
+      "foreign_keys": [
+        {"column": "guardian_id", "references_table": "guardian", "references_column": "guardian_id"}
+      ]
+    },
+    "encounter": {
+      "primary_key": "encounter_id",
+      "required_fields": ["encounter_id", "patient_id", "encounter_date", "total_amount", "source_system"],
+      "foreign_keys": [
+        {"column": "patient_id", "references_table": "patient", "references_column": "patient_id"}
+      ]
+    }
+  },
+  "sources": {
+    "legacy_a": {
+      "source_engine": "MS-SQL-style synthetic extract",
+      "tables": {
+        "owners": [
+          {"owner_no": "001", "owner_name": "Kim", "phone": "010-1234-5678"},
+          {"owner_no": "002", "owner_name": "Lee", "phone": "010 9999 0000"},
+          {"owner_no": "003", "owner_name": "", "phone": "010-7777-1111"}
+        ],
+        "animals": [
+          {"animal_no": "A01", "owner_no": "001", "animal_name": "Momo", "species_code": "DOG", "birth_ymd": "2020-01-02"},
+          {"animal_no": "A02", "owner_no": "002", "animal_name": "Nabi", "species_code": "CAT", "birth_ymd": "2019-05-03"},
+          {"animal_no": "A03", "owner_no": "003", "animal_name": "Hodu", "species_code": "DOG", "birth_ymd": "2021-06-01"},
+          {"animal_no": "A04", "owner_no": "999", "animal_name": "Ghost", "species_code": "CAT", "birth_ymd": "2022-09-09"}
+        ],
+        "charts": [
+          {"chart_no": "V01", "animal_no": "A01", "visit_at": "2026-07-01", "amount": "55000"},
+          {"chart_no": "V02", "animal_no": "A02", "visit_at": "invalid-date", "amount": "30000"},
+          {"chart_no": "V03", "animal_no": "A03", "visit_at": "2026-07-02", "amount": "25000"},
+          {"chart_no": "V04", "animal_no": "A99", "visit_at": "2026-07-03", "amount": "10000"}
+        ]
+      },
+      "mappings": [
+        {
+          "source_table": "owners",
+          "target_table": "guardian",
+          "fields": [
+            {"source": "owner_no", "target": "guardian_id", "transforms": [{"operation": "prefix", "value": "A-"}]},
+            {"source": "owner_name", "target": "full_name", "transforms": [{"operation": "strip"}]},
+            {"source": "phone", "target": "phone", "transforms": [{"operation": "normalize_phone"}]},
+            {"source": null, "target": "source_system", "transforms": [{"operation": "constant", "value": "legacy_a"}]}
+          ]
+        },
+        {
+          "source_table": "animals",
+          "target_table": "patient",
+          "fields": [
+            {"source": "animal_no", "target": "patient_id", "transforms": [{"operation": "prefix", "value": "A-"}]},
+            {"source": "owner_no", "target": "guardian_id", "transforms": [{"operation": "prefix", "value": "A-"}]},
+            {"source": "animal_name", "target": "patient_name", "transforms": [{"operation": "strip"}]},
+            {"source": "species_code", "target": "species", "transforms": [{"operation": "species_map", "value": {"DOG": "canine", "CAT": "feline"}}]},
+            {"source": "birth_ymd", "target": "birth_date", "transforms": [{"operation": "parse_date"}]},
+            {"source": null, "target": "source_system", "transforms": [{"operation": "constant", "value": "legacy_a"}]}
+          ]
+        },
+        {
+          "source_table": "charts",
+          "target_table": "encounter",
+          "fields": [
+            {"source": "chart_no", "target": "encounter_id", "transforms": [{"operation": "prefix", "value": "A-"}]},
+            {"source": "animal_no", "target": "patient_id", "transforms": [{"operation": "prefix", "value": "A-"}]},
+            {"source": "visit_at", "target": "encounter_date", "transforms": [{"operation": "parse_date"}]},
+            {"source": "amount", "target": "total_amount", "transforms": [{"operation": "decimal_2", "value": {"minimum": 0}}]},
+            {"source": null, "target": "source_system", "transforms": [{"operation": "constant", "value": "legacy_a"}]}
+          ]
+        }
+      ]
+    },
+    "legacy_b": {
+      "source_engine": "Firebird-style synthetic extract",
+      "tables": {
+        "customers": [
+          {"cust_id": "C10", "name": " Park ", "mobile": "010.2222.3333"},
+          {"cust_id": "C11", "name": "Choi", "mobile": null}
+        ],
+        "pet_master": [
+          {"pet_id": "P10", "cust_id": "C10", "name": "Coco", "kind": "canine", "dob": "2022-02-01"},
+          {"pet_id": "P11", "cust_id": "C11", "name": "Bori", "kind": "feline", "dob": "2018-11-11"},
+          {"pet_id": "P12", "cust_id": "CXX", "name": "Lost", "kind": "canine", "dob": "2023-01-01"}
+        ],
+        "visits": [
+          {"visit_id": "E10", "pet_id": "P10", "visit_date": "2026-07-04", "total_charge": "80,000"},
+          {"visit_id": "E11", "pet_id": "P11", "visit_date": "2026-07-05", "total_charge": "40000"},
+          {"visit_id": "E10", "pet_id": "P10", "visit_date": "2026-07-06", "total_charge": "5000"},
+          {"visit_id": "E13", "pet_id": "PXX", "visit_date": "2026-07-07", "total_charge": "12000"}
+        ]
+      },
+      "mappings": [
+        {
+          "source_table": "customers",
+          "target_table": "guardian",
+          "fields": [
+            {"source": "cust_id", "target": "guardian_id", "transforms": [{"operation": "prefix", "value": "B-"}]},
+            {"source": "name", "target": "full_name", "transforms": [{"operation": "strip"}]},
+            {"source": "mobile", "target": "phone", "transforms": [{"operation": "normalize_phone"}]},
+            {"source": null, "target": "source_system", "transforms": [{"operation": "constant", "value": "legacy_b"}]}
+          ]
+        },
+        {
+          "source_table": "pet_master",
+          "target_table": "patient",
+          "fields": [
+            {"source": "pet_id", "target": "patient_id", "transforms": [{"operation": "prefix", "value": "B-"}]},
+            {"source": "cust_id", "target": "guardian_id", "transforms": [{"operation": "prefix", "value": "B-"}]},
+            {"source": "name", "target": "patient_name", "transforms": [{"operation": "strip"}]},
+            {"source": "kind", "target": "species", "transforms": [{"operation": "species_map", "value": {"canine": "canine", "feline": "feline"}}]},
+            {"source": "dob", "target": "birth_date", "transforms": [{"operation": "parse_date"}]},
+            {"source": null, "target": "source_system", "transforms": [{"operation": "constant", "value": "legacy_b"}]}
+          ]
+        },
+        {
+          "source_table": "visits",
+          "target_table": "encounter",
+          "fields": [
+            {"source": "visit_id", "target": "encounter_id", "transforms": [{"operation": "prefix", "value": "B-"}]},
+            {"source": "pet_id", "target": "patient_id", "transforms": [{"operation": "prefix", "value": "B-"}]},
+            {"source": "visit_date", "target": "encounter_date", "transforms": [{"operation": "parse_date"}]},
+            {"source": "total_charge", "target": "total_amount", "transforms": [{"operation": "decimal_2", "value": {"minimum": 0}}]},
+            {"source": null, "target": "source_system", "transforms": [{"operation": "constant", "value": "legacy_b"}]}
+          ]
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Synthetic versioned extracts; no real patient or guardian data.",
+    "Demonstrates mapping correctness and reconciliation, not live MS-SQL/Firebird connectivity.",
+    "Correctness-scale fixture; no production throughput or transaction benchmark claim."
+  ]
+}

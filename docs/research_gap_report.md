@@ -12,7 +12,7 @@
 | uncertainty/robustness/failure audit | pass | 4 stress scenarios × 3 capacities × 3 policies, safety dominance, oracle regret, selection Jaccard, readiness blocker | prospective realized impact는 upstream gate 후 추가 |
 | product surface | pass | CLI + FastAPI + OpenAPI + dashboard + SQLite approval history + RBAC-lite writes + structured logs + monitoring snapshot + deployment readiness gate + Docker/compose smoke | hosted demo hardening |
 | Seoul impact card | pass | validation `READY`, 12개 impact card, 검증 후보 단위 711과 evidence를 노출 | 실제 운영 결과가 생기면 realized impact를 별도 검증 |
-| Impact policy audit | pass | `reports/impact_policy_audit.csv/json`와 `/api/impact-policy-audit`가 unsafe publish 대비 guarded policy의 unsupported claim 차단을 검증 | public deploy GO 후 verified claim row 분리 |
+| Impact policy/claim-scope audit | pass | `/api/impact-policy-audit`가 model-validated estimate, unsafe realized-impact claim, guarded realized-impact claim을 분리하고 미관측 field outcome의 성과 과장을 차단 | 실제 dispatch/outcome이 생기면 realized field impact를 별도 prospective 검증 |
 | Reviewer policy robustness | pass | `/api/reviewer-policy-robustness`와 CSV/JSON이 36-row controlled comparison과 invalid-evidence-first dominance를 재현 | 실제 reviewer feedback으로 utility weight 보정 |
 | Reviewer action plan | pass | `reports/reviewer_action_plan.csv/json`와 `/api/reviewer-action-plan`이 검토 용량 제한 하 local-only 우선순위를 제시 | 실제 운영 reviewer feedback 반영 |
 | Reviewer evidence contract | pass | `/api/reviewer-evidence-bundles`와 CSV/JSON이 impact/action join, 3시간 SLA, timestamp sad path, SHA-256 content lock을 재현 | 외부 서명/원격 attestation은 hosted hardening에서 검토 |

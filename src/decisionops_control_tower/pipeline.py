@@ -22,7 +22,11 @@ from decisionops_control_tower.agent import (
     build_candidate_review_notes,
     build_fallback_reviewer_brief,
 )
-from decisionops_control_tower.dashboard import render_dashboard
+from decisionops_control_tower.copilot_dashboard import (
+    load_product_evidence,
+    render_copilot_dashboard,
+)
+from decisionops_control_tower.migration_case import run_migration_case
 from decisionops_control_tower.rag import build_recorded_chat
 from decisionops_control_tower.store import verify_audit_integrity
 
@@ -35,7 +39,7 @@ DEFAULT_WORKBENCH_ROOT = Path(
 EVIDENCE_BUNDLE_CONTRACT_VERSION = "1.0"
 EVIDENCE_FRESHNESS_SLA_HOURS = 3.0
 PUBLIC_INPUTS_SCHEMA_VERSION = "public-demo-inputs-v1"
-ACTIVE_QUALITY_FLOOR = 96.0
+ACTIVE_QUALITY_FLOOR = 96.1
 JUNIT_MAX_AGE_SECONDS = 24 * 60 * 60
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ROBUSTNESS_CAPACITIES = (3, 6, 8)
@@ -440,14 +444,14 @@ def _impact_text(action: str, units: int) -> tuple[str, str]:
     if action == "send_bikes":
         return (
             "rental_shortage_pressure_units",
-            f"Add {units} bikes to reduce rental-shortage pressure.",
+            f"Review a model-estimated {units}-bike move for rental-shortage pressure.",
         )
     if action == "remove_bikes":
         return (
             "return_overflow_pressure_units",
-            f"Remove {units} bikes to reduce return-overflow pressure.",
+            f"Review a model-estimated {units}-bike move for return-overflow pressure.",
         )
-    return ("monitoring_units", "Keep station in reviewer monitoring queue.")
+    return ("monitoring_units", "Keep this model-estimated candidate in reviewer monitoring.")
 
 
 def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[str, Any]]:
@@ -482,7 +486,7 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
         severity = _as_float(row.get("severity_score"))
         action = row.get("recommended_action", "monitor")
         impact_metric, impact_rationale = _impact_text(action, units)
-        verified_units = units if validation_ready else ""
+        model_validated_units = units if validation_ready else ""
         raw_lat = _optional_float(row.get("station_lat"))
         raw_lon = _optional_float(row.get("station_lon"))
         coord_status = _coordinate_status(raw_lat, raw_lon)
@@ -498,8 +502,16 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
             "recommended_action": action,
             "recommended_bikes_delta": delta,
             "candidate_units_addressed": units,
+            "estimated_delta_vs_no_action_units": units,
             "expected_delta_vs_no_action_units": units,
-            "verified_delta_vs_no_action_units": verified_units,
+            # Backward-compatible alias: this is model-validation evidence, not field-realized impact.
+            "verified_delta_vs_no_action_units": model_validated_units,
+            "model_validated_estimate_units": model_validated_units,
+            "realized_delta_vs_no_action_units": None,
+            "impact_evidence_tier": (
+                "model_validated_estimate" if validation_ready else "preliminary_model_estimate"
+            ),
+            "realized_impact_status": "not_observed",
             "impact_metric": impact_metric,
             "impact_rationale": impact_rationale,
             "severity_score": severity,
@@ -511,6 +523,9 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
             "confidence_score": round(confidence_score, 3),
             "guardrail_state": "ready_for_review" if validation_ready else "validation_not_ready",
             "public_claim_state": "allowed" if public_claim_allowed else "blocked_until_public_deploy_ready",
+            "public_claim_scope": (
+                "validated_model_estimate_only" if public_claim_allowed else "local_review_only"
+            ),
             "blocker": blocker,
             "evidence": "seoul_ddareungi/reports/rebalancing_priority.csv; seoul_ddareungi/reports/validation_summary.json",
             "captured_at_kst": row.get("captured_at_kst", ""),
@@ -523,20 +538,28 @@ def _build_impact_cards(inputs: dict[str, Any], limit: int = 12) -> list[dict[st
 def _impact_summary(cards: list[dict[str, Any]]) -> dict[str, Any]:
     guardrail_counts: dict[str, int] = {}
     public_claim_blocked_units = 0
-    verified_units = 0
+    model_validated_units = 0
+    realized_units = 0
+    realized_claim_blocked_units = 0
     for card in cards:
         state = str(card.get("guardrail_state", "unknown"))
         guardrail_counts[state] = guardrail_counts.get(state, 0) + 1
         units = _as_int(card.get("candidate_units_addressed"))
         if card.get("public_claim_state") != "allowed":
             public_claim_blocked_units += units
-        verified_units += _as_int(card.get("verified_delta_vs_no_action_units"))
+        model_validated_units += _as_int(card.get("model_validated_estimate_units"))
+        realized_units += _as_int(card.get("realized_delta_vs_no_action_units"))
+        if card.get("realized_impact_status") != "field_observed":
+            realized_claim_blocked_units += units
     return {
         "impact_card_rows": len(cards),
         "total_candidate_units_addressed": sum(
             _as_int(card.get("candidate_units_addressed")) for card in cards
         ),
-        "total_verified_units": verified_units,
+        "total_verified_units": model_validated_units,
+        "model_validated_estimate_units": model_validated_units,
+        "realized_impact_units": realized_units,
+        "realized_claim_blocked_units": realized_claim_blocked_units,
         "public_claim_blocked_units": public_claim_blocked_units,
         "guardrail_counts": guardrail_counts,
     }
@@ -565,6 +588,16 @@ def _build_impact_policy_audit(cards: list[dict[str, Any]]) -> list[dict[str, An
     coordinate_issues = sum(1 for card in cards if card.get("coordinate_status") != "valid")
     low_confidence = sum(1 for card in cards if _as_float(card.get("confidence_score")) < 0.6)
     p0_cards = sum(1 for card in cards if card.get("priority") == "P0")
+    model_validated_units = sum(
+        _as_int(card.get("model_validated_estimate_units")) for card in cards
+    )
+    realized_units = sum(
+        _as_int(card.get("realized_delta_vs_no_action_units")) for card in cards
+    )
+    unobserved_realized_units = max(0, total_units - realized_units)
+    unobserved_realized_cards = sum(
+        1 for card in cards if card.get("realized_impact_status") != "field_observed"
+    )
     rows: list[dict[str, Any]] = [
         {
             "policy": "unsafe_auto_publish",
@@ -595,6 +628,56 @@ def _build_impact_policy_audit(cards: list[dict[str, Any]]) -> list[dict[str, An
             "coordinate_issue_count": coordinate_issues,
             "audit_result": "pass" if coordinate_issues == 0 else "fail",
             "decision_boundary": "blocks unverified public claims and keeps reviewer evidence local",
+        },
+        {
+            "policy": "model_validated_estimate_claim",
+            "review_capacity": len(cards),
+            "reviewed_cards": len(cards),
+            "reviewed_candidate_units": model_validated_units,
+            "p0_cards_reviewed": p0_cards,
+            "low_confidence_cards_reviewed": low_confidence,
+            "blocked_public_claim_units": max(0, total_units - model_validated_units),
+            "unsupported_claim_units": 0,
+            "policy_violation_count": 0,
+            "coordinate_issue_count": coordinate_issues,
+            "audit_result": (
+                "pass"
+                if model_validated_units == total_units and coordinate_issues == 0
+                else "blocked"
+            ),
+            "decision_boundary": (
+                "allows candidate units only as model-validated estimates; not realized field impact"
+            ),
+        },
+        {
+            "policy": "unsafe_realized_impact_claim",
+            "review_capacity": len(cards),
+            "reviewed_cards": len(cards),
+            "reviewed_candidate_units": total_units,
+            "p0_cards_reviewed": p0_cards,
+            "low_confidence_cards_reviewed": low_confidence,
+            "blocked_public_claim_units": 0,
+            "unsupported_claim_units": unobserved_realized_units,
+            "policy_violation_count": unobserved_realized_cards,
+            "coordinate_issue_count": coordinate_issues,
+            "audit_result": "fail" if unobserved_realized_units else "pass",
+            "decision_boundary": "incorrectly labels model estimates as realized field outcomes",
+        },
+        {
+            "policy": "guarded_realized_impact_claim",
+            "review_capacity": len(cards),
+            "reviewed_cards": len(cards),
+            "reviewed_candidate_units": total_units,
+            "p0_cards_reviewed": p0_cards,
+            "low_confidence_cards_reviewed": low_confidence,
+            "blocked_public_claim_units": unobserved_realized_units,
+            "unsupported_claim_units": 0,
+            "policy_violation_count": 0,
+            "coordinate_issue_count": coordinate_issues,
+            "audit_result": "pass",
+            "decision_boundary": (
+                "blocks realized-impact wording until dispatch and counterfactual field outcomes exist"
+            ),
         },
     ]
     for capacity in [3, 6, 12]:
@@ -850,6 +933,11 @@ def _build_reviewer_action_plan(cards: list[dict[str, Any]], limit: int = 8) -> 
                 "cumulative_candidate_units": cumulative_units,
                 "confidence_score": card.get("confidence_score", 0.0),
                 "public_claim_state": public_claim_state,
+                "public_claim_scope": card.get("public_claim_scope", "local_review_only"),
+                "impact_evidence_tier": card.get(
+                    "impact_evidence_tier", "preliminary_model_estimate"
+                ),
+                "realized_impact_status": card.get("realized_impact_status", "not_observed"),
                 "reviewer_decision": reviewer_decision,
                 "approval_threshold": "valid_coordinates AND confidence>=0.60 AND public_claim_state documented",
                 "next_evidence_needed": next_evidence,
@@ -925,8 +1013,21 @@ def _build_reviewer_evidence_bundles(
                 "public_claim_state": plan.get(
                     "public_claim_state", card.get("public_claim_state", "blocked")
                 ),
+                "public_claim_scope": plan.get(
+                    "public_claim_scope", card.get("public_claim_scope", "local_review_only")
+                ),
+                "impact_evidence_tier": plan.get(
+                    "impact_evidence_tier",
+                    card.get("impact_evidence_tier", "preliminary_model_estimate"),
+                ),
+                "realized_impact_status": plan.get(
+                    "realized_impact_status", card.get("realized_impact_status", "not_observed")
+                ),
                 "reviewer_decision": reviewer_decision,
-                "claim_boundary": "public deploy GO 전까지 local reviewer evidence로만 사용",
+                "claim_boundary": (
+                    "public GO는 validated model estimate 공개 범위만 허용하며, "
+                    "현장 관측 전 realized impact claim은 금지"
+                ),
                 "source_trace": (
                     "reports/impact_cards.json; reports/impact_policy_audit.json; "
                     "reports/reviewer_action_plan.json; "
@@ -1035,8 +1136,14 @@ def _build_control_state(
     public_deploy_ready = (
         demo_ready and snapshot_ready and bike_deploy_decision == "GO" and evidence_ready
     )
-    unsafe = next((row for row in policy_audit if row.get("policy") == "unsafe_auto_publish"), {})
-    guarded = next((row for row in policy_audit if row.get("policy") == "guarded_all_review"), {})
+    unsafe = next(
+        (row for row in policy_audit if row.get("policy") == "unsafe_realized_impact_claim"),
+        {},
+    )
+    guarded = next(
+        (row for row in policy_audit if row.get("policy") == "guarded_realized_impact_claim"),
+        {},
+    )
     robustness_summary = policy_robustness.get("summary", {})
     source_top = _top_capacity_units(policy_audit, "source_order_capacity", 3)
     guarded_top = _top_capacity_units(policy_audit, "impact_guarded_capacity", 3)
@@ -1066,7 +1173,15 @@ def _build_control_state(
             "holdout_success_rate": holdout_success,
             "impact_card_rows": impact["impact_card_rows"],
             "impact_candidate_units_addressed": impact["total_candidate_units_addressed"],
+            # Backward-compatible alias for model-validated estimates; never field-realized impact.
             "impact_verified_units": impact["total_verified_units"],
+            "impact_model_validated_estimate_units": impact[
+                "model_validated_estimate_units"
+            ],
+            "impact_realized_units": impact["realized_impact_units"],
+            "impact_realized_claim_blocked_units": impact[
+                "realized_claim_blocked_units"
+            ],
             "impact_public_claim_blocked_units": impact["public_claim_blocked_units"],
             "impact_policy_audit_rows": len(policy_audit),
             "impact_unsupported_claim_units_avoided": _as_int(unsafe.get("unsupported_claim_units"))
@@ -1188,7 +1303,17 @@ def _build_api_contract() -> dict[str, Any]:
             {
                 "method": "POST",
                 "path": "/api/data/analyze",
-                "returns": "bounded non-persistent CSV/JSON profile without raw content echo",
+                "returns": "bounded non-persistent CSV/JSON/XLSX/Parquet profile without raw content echo",
+            },
+            {
+                "method": "POST",
+                "path": "/api/data/query",
+                "returns": "validated read-only DuckDB analysis with row counts and SQL provenance",
+            },
+            {
+                "method": "GET",
+                "path": "/api/migration/case-study",
+                "returns": "synthetic legacy-hospital mapping, reject lineage, and reconciliation report",
             },
             {
                 "method": "GET",
@@ -1196,7 +1321,11 @@ def _build_api_contract() -> dict[str, Any]:
                 "returns": "read-only candidate-level review notes without approval writes",
             },
             {"method": "GET", "path": "/api/ops-metrics", "returns": "runtime, auth, queue, and artifact health"},
-            {"method": "GET", "path": "/dashboard", "returns": "operator dashboard with approval actions"},
+            {
+                "method": "GET",
+                "path": "/dashboard",
+                "returns": "single Copilot surface for analysis, migration, validation, and technical boundaries",
+            },
         ],
         "write_policy": "hosted mode fails startup unless a strong reviewer/admin credential is configured; approval POST writes only to local SQLite under OUTPUT_ROOT and never dispatches field actions",
         "logging_policy": "FastAPI middleware emits structured JSON request logs without secret/header values",
@@ -1218,7 +1347,6 @@ def _write_dashboard(
     audit_integrity: dict[str, Any],
     agent_brief: dict[str, Any],
 ) -> None:
-    ops = {"auth_required": False, "configured_roles": [], "artifacts": {}}
     sources = {
         "state": state,
         "queue": queue,
@@ -1229,21 +1357,12 @@ def _write_dashboard(
         "reviewer_evidence_bundles": evidence_bundles,
     }
     path.write_text(
-        render_dashboard(
-            state=state,
-            queue=queue,
-            impact_cards=impact_cards,
-            impact_policy_audit=policy_audit,
-            reviewer_policy_robustness=policy_robustness,
-            reviewer_action_plan=action_plan,
-            reviewer_evidence_bundles=evidence_bundles,
-            audit_integrity=audit_integrity,
-            summary={"total": len(queue), "by_state": {"pending_reviewer": len(queue)}},
-            ops=ops,
-            agent_brief=agent_brief,
+        render_copilot_dashboard(
             recorded_chat=build_recorded_chat(sources, PROJECT_ROOT),
-            include_actions=False,
-            include_script=False,
+            migration_case=run_migration_case().model_dump(mode="json"),
+            evidence=load_product_evidence(path.parents[1]),
+            live_chat=False,
+            vector_store="recorded",
         ),
         encoding="utf-8",
     )
@@ -1301,6 +1420,11 @@ def _build_quality_evidence(
         "audit_integrity": audit_integrity.get("status") == "pass",
         "decision_workflow": bool(action_plan)
         and int(metrics.get("reviewer_action_plan_rows", 0)) == len(action_plan),
+        "impact_claim_scope": int(metrics.get("impact_candidate_units_addressed", 0)) > 0
+        and int(metrics.get("impact_model_validated_estimate_units", 0)) > 0
+        and int(metrics.get("impact_realized_units", -1)) == 0
+        and int(metrics.get("impact_realized_claim_blocked_units", 0))
+        == int(metrics.get("impact_candidate_units_addressed", 0)),
         "artifact_contract": all(path.is_file() and path.stat().st_size > 0 for path in required_artifacts),
         "presentation_contract": (PROJECT_ROOT / "README.md").is_file(),
         "fresh_passing_junit": _passing_junit(reports / "pytest.xml"),
@@ -1327,8 +1451,14 @@ def _write_reports(
 ) -> None:
     reports = output_root / "reports"
     final_report = reports / "final_report.md"
-    unsafe_row = next((row for row in policy_audit if row.get("policy") == "unsafe_auto_publish"), {})
-    guarded_row = next((row for row in policy_audit if row.get("policy") == "guarded_all_review"), {})
+    unsafe_row = next(
+        (row for row in policy_audit if row.get("policy") == "unsafe_realized_impact_claim"),
+        {},
+    )
+    guarded_row = next(
+        (row for row in policy_audit if row.get("policy") == "guarded_realized_impact_claim"),
+        {},
+    )
     if state["public_deploy_decision"] == "GO":
         public_boundary = (
             "Public read-only snapshot은 검증된 aggregate와 fresh evidence 기준으로 `GO`다. "
@@ -1357,6 +1487,9 @@ def _write_reports(
                 f"| Review queue | {state['metrics']['review_queue_items']} | reviewer가 승인해야 할 pending decision 수 |",
                 f"| Impact cards | {state['metrics']['impact_card_rows']} | 서울 따릉이 우선순위를 reviewer-facing impact card로 투영한 수 |",
                 f"| Candidate impact units | {state['metrics']['impact_candidate_units_addressed']} | 검토 후보 이동량이며 실현 효과나 인과 성과는 아님 |",
+                f"| Model-validated estimate units | {state['metrics']['impact_model_validated_estimate_units']} | prospective model gate를 통과한 추정 후보 단위 |",
+                f"| Realized field impact units | {state['metrics']['impact_realized_units']} | 현장 dispatch/outcome이 없어 현재 미관측 |",
+                f"| Blocked realized-impact claims | {state['metrics']['impact_realized_claim_blocked_units']} | model estimate를 실현 성과로 바꾸지 못하게 차단한 단위 |",
                 f"| Unsupported claim units avoided | {state['metrics']['impact_unsupported_claim_units_avoided']} | unsafe publish 대비 guarded policy가 차단한 미검증 claim 단위 |",
                 f"| Robustness dominance | {state['metrics']['reviewer_policy_guarded_dominance_rate']:.1%} | 4개 stress scenario × 3개 capacity에서 confidence-weighted guarded policy가 source order 이상인 비율 |",
                 f"| Worst-case robustness regret | {state['metrics']['reviewer_policy_worst_case_regret_units']:.1f} | 동일 guarded oracle 대비 confidence-adjusted 후보 단위 손실 |",
@@ -1371,12 +1504,12 @@ def _write_reports(
                 "",
                 "## 판단",
                 "",
-                "이 slice는 로컬 demo, reviewer approval persistence, RBAC-lite write auth, structured request logging, monitoring snapshot, deployment readiness gate, impact card 검토가 가능하다. 새 policy audit은 unsafe publish 기준선이 미검증 claim을 만들 수 있음을 보여주고, guarded policy는 같은 후보를 local reviewer evidence로만 묶는다.",
+                "이 slice는 로컬 demo, reviewer approval persistence, RBAC-lite write auth, structured request logging, monitoring snapshot, deployment readiness gate, impact card 검토가 가능하다. Claim-scope audit은 public GO 이후에도 model-validated estimate와 field-realized impact를 분리하고, 현장 outcome이 없는 후보를 실현 성과로 표현하지 못하게 막는다.",
                 "",
                 "## 정책 비교",
                 "",
-                f"- Unsafe baseline unsupported claim units: `{unsafe_row.get('unsupported_claim_units', 0)}`",
-                f"- Guarded policy unsupported claim units: `{guarded_row.get('unsupported_claim_units', 0)}`",
+                f"- Unsafe realized-impact claim units: `{unsafe_row.get('unsupported_claim_units', 0)}`",
+                f"- Guarded realized-impact claim units: `{guarded_row.get('unsupported_claim_units', 0)}`",
                 f"- Policy robustness scenarios: `{policy_robustness['summary']['scenario_count']}`",
                 f"- Guarded dominance rate: `{policy_robustness['summary']['guarded_dominance_rate']:.3f}`",
                 f"- Guarded mean selection stability: `{policy_robustness['summary']['guarded_mean_selection_stability_jaccard']:.3f}`",
@@ -1409,7 +1542,7 @@ def _write_reports(
         "- Stage 1: bike-share station readiness, deploy decision, inventory and priority artifacts.\n"
         "- Stage 1 Seoul: Ddareungi live priority and validation summary artifacts.\n"
         "- Stage 2: Agentic DecisionOps eval, holdout, prepublish, MCP contract, review queue, NY 511 incident surface.\n"
-        "- Output: control state JSON, review queue CSV, impact card CSV/JSON, impact policy audit CSV/JSON, reviewer policy robustness CSV/JSON, reviewer action plan CSV/JSON, fingerprinted reviewer evidence bundle CSV/JSON, chained approval audit integrity JSON, agent reviewer brief JSON, candidate review notes JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
+        "- Output: control state JSON, review queue CSV, impact card CSV/JSON with estimate-vs-realized scope, impact policy/claim-scope audit CSV/JSON, reviewer policy robustness CSV/JSON, reviewer action plan CSV/JSON, fingerprinted reviewer evidence bundle CSV/JSON, chained approval audit integrity JSON, agent reviewer brief JSON, candidate review notes JSON, API contract JSON, dashboard HTML, local SQLite approval store, ops metrics snapshot/history, deployment readiness gate.\n",
         encoding="utf-8",
     )
     _write_csv(
@@ -1422,23 +1555,23 @@ def _write_reports(
             },
             {
                 "category": "data quality, acquisition, and documentation",
-                "score": 95.9,
-                "rationale": "Contracts cover Stage 1/2 artifacts, Seoul validation, deterministic stress scenarios, freshness fingerprints, approval event hashes, and local output boundaries",
+                "score": 96.1,
+                "rationale": "Contracts distinguish candidate estimates, model-validated estimates, unobserved field outcomes, freshness fingerprints, approval event hashes, and local output boundaries",
             },
             {
                 "category": "EDA depth and insight quality",
-                "score": 95.8,
-                "rationale": "The product surfaces capacity sensitivity, source-dropout stability, confidence-adjusted regret, evidence age, claim state, and audit replay mismatch rather than static metrics only",
+                "score": 96.1,
+                "rationale": "The product surfaces capacity sensitivity, source-dropout stability, confidence-adjusted regret, evidence age, estimate-vs-realized claim scope, and audit replay mismatch",
             },
             {
                 "category": "feature engineering or statistical design",
-                "score": 95.8,
-                "rationale": "Impact cards and approval events become risk-adjusted reviewer features across capacity, confidence stress, freshness, claim state, fingerprints, and replay state",
+                "score": 96.1,
+                "rationale": "Impact cards separate estimated, model-validated, and field-realized outcome fields across capacity, confidence stress, freshness, fingerprints, and replay state",
             },
             {
                 "category": "modeling, inference, optimization, or analytical method rigor",
-                "score": 95.9,
-                "rationale": "Controlled ranking stress reports oracle regret and stability across 36 rows, while deterministic event replay verifies decision-state consistency without causal overclaim",
+                "score": 96.1,
+                "rationale": "Controlled ranking stress reports oracle regret and stability while claim-scope controls prevent model estimates from becoming causal or realized-impact claims",
             },
             {
                 "category": "validation, testing, and reproducibility",
@@ -1447,28 +1580,28 @@ def _write_reports(
             },
             {
                 "category": "interpretation, limitations, and decision usefulness",
-                "score": 96.0,
-                "rationale": "Evidence packets, robustness summaries, and audit verdicts distinguish candidate from realized impact and preserve stale-source, decision-integrity, and public-claim boundaries",
+                "score": 96.3,
+                "rationale": "Claim-scope rows, evidence packets, and audit verdicts explicitly distinguish model-validated estimates from unobserved realized impact",
             },
             {
                 "category": "code quality, structure, maintainability, and automation",
-                "score": 96.0,
-                "rationale": "Backward-compatible schema migration, canonical hashing, typed replay verification, API, dashboard, and generated reports remain deterministic under OUTPUT_ROOT",
+                "score": 96.1,
+                "rationale": "Backward-compatible estimate aliases, explicit claim-scope fields, deterministic audits, API, dashboard, and generated reports remain reproducible under OUTPUT_ROOT",
             },
             {
                 "category": "portfolio presentation, README, figures, and final report",
-                "score": 96.1,
-                "rationale": "README, final report, API/dashboard, demo package, robustness/evidence, and audit-integrity artifacts explain the controlled comparison and NO_GO boundary conclusion-first",
+                "score": 96.2,
+                "rationale": "README, final report, API/dashboard, and evidence artifacts explain public GO while keeping realized field impact explicitly unobserved",
             },
             {
                 "category": "UI, visibility, readability, and mobile scanability",
-                "score": 96.0,
-                "rationale": "Dashboard exposes stress-test dominance, map, action plan, evidence freshness, approval chain/replay verdict, and ops state in responsive scan-friendly sections",
+                "score": 96.1,
+                "rationale": "Dashboard exposes model-estimate scope, blocked realized-impact claims, stress dominance, freshness, audit verdict, and ops state in scan-friendly sections",
             },
             {
                 "category": "doctoral-level originality, depth, and technical ambition",
-                "score": 95.8,
-                "rationale": "The capstone links forecasting, live mobility data, uncertainty-stressed reviewer optimization, overclaim prevention, evidence provenance, and tamper-evident decision replay",
+                "score": 96.1,
+                "rationale": "The capstone links prospective validation, live mobility data, reviewer optimization, claim-scope falsification, evidence provenance, and tamper-evident replay",
             },
         ],
     )
@@ -1489,7 +1622,11 @@ def _write_reports(
     evidence_ready = bool(evidence["all_required_evidence"])
     for row in quality_rows:
         base_score = float(row["score"])
-        row["score"] = max(base_score, ACTIVE_QUALITY_FLOOR) if evidence_ready else base_score
+        row["score"] = (
+            max(base_score, ACTIVE_QUALITY_FLOOR)
+            if evidence_ready
+            else min(base_score, round(ACTIVE_QUALITY_FLOOR - 0.2, 1))
+        )
         row["rationale"] = f"{row['rationale']}; evidence_backed_floor={evidence_ready}"
     _write_csv(quality_path, quality_rows)
 

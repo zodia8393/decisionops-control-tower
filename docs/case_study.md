@@ -1,5 +1,7 @@
 # Case Study: 서울 공공자전거 DecisionOps Control Tower
 
+> 이 문서는 Decision Intelligence Copilot이 재사용하는 기존 Bike/Control Tower domain case다. 2026-07-21 현재 primary recruiter narrative는 업로드 분석과 migration이며, 아래 2026-07-20 공개 snapshot의 과거 `GO`를 현재 freshness 상태로 해석하지 않는다.
+
 ## 한 줄 요약
 
 기존 미국 bike-share benchmark에서 시작해 서울 따릉이 공개데이터 adapter로 확장하고, 대여 불가·반납 포화·재배치 우선순위를 지도, 검토 대기열, impact card, 승인 기록으로 연결한 운영 의사결정 제품이다.
@@ -51,7 +53,7 @@
 | Local private demo | `GO` |
 | Container demo | `GO` |
 | Hosted private demo | 인증 credential 설정 전 `NO_GO` |
-| Public read-only snapshot | `GO` · 2026-07-20 12:25 KST aggregate |
+| Public read-only snapshot | 2026-07-22 09:03 KST source artifact는 freshness 8/8 `GO`; 실제 Pages는 2026-07-20 legacy `STALE` |
 | Hosted write API | credential/target hardening 전까지 `NO_GO` |
 | Review queue | 54건 |
 | Impact cards | 12건 |
@@ -62,7 +64,7 @@
 | Approval audit integrity | `PASS`, hash chain + state replay |
 | CI | GitHub Actions 통과 |
 
-서울 따릉이 validation과 evidence freshness가 `READY`여서 public read-only snapshot은 `GO`다. 다만 impact card는 실현 효과나 인과 성과가 아니라 reviewer-facing 후보 단위이며, hosted write API는 계속 별도 `NO_GO` gate다.
+서울 따릉이 validation은 `READY`지만 evidence freshness는 시간에 따라 만료된다. 2026-07-21 실행은 0/8 `NO_GO`였고, source 갱신 뒤 2026-07-22 09:03 KST 실행은 8/8 `GO`다. Impact card는 실현 효과나 인과 성과가 아니라 reviewer-facing 후보 단위이며, hosted write API도 별도 `NO_GO`다.
 
 ## 왜 식상하지 않은가
 

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decisionops-control-tower"
-version = "0.2.0"
-description = "Evidence-grounded AI operations decision chatbot with guarded RAG and human review."
+version = "0.3.0"
+description = "Validated natural-language tabular analysis, migration reconciliation, guarded RAG, and human review."
 requires-python = ">=3.10"
 dependencies = [
   "numpy",
@@ -15,6 +15,8 @@ dependencies = [
   "seaborn",
   "scipy",
   "pyarrow",
+  "openpyxl",
+  "duckdb",
   "fastapi",
   "uvicorn[standard]",
 ]
@@ -24,3 +26,6 @@ dev = ["pytest", "httpx"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+decisionops_control_tower = ["fixtures/*.json"]
